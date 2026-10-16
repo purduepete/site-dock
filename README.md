@@ -10,7 +10,7 @@ The font is bundled from `@fontsource-variable/roboto-flex` with its open-source
 
 ## This installation
 
-- Production: `https://jimbrownhome.tail8ad282.ts.net/` on jimbrownhome, started at logon by the `SiteDock` scheduled task.
+- Production: `https://jimbrownhome.tail8ad282.ts.net:9443/` on jimbrownhome (443 there belongs to another app), started at logon by the `SiteDock` scheduled task.
 - Previous host: `https://jimbrownlaptop.tail8ad282.ts.net/`, retired after the move.
 - Local: `http://127.0.0.1:8790` on the host.
 - Logs: `data\server.log` and `data\server.err.log`. The running PID is in `data\server.lock`.
