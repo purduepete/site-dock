@@ -13,7 +13,7 @@ const ownOrigins = [...localOrigins, location.origin, ...(import.meta.env.VITE_S
 const message = (error: unknown) => error instanceof Error ? error.message : 'The request failed. Please try again.';
 type Frame = { id: string; url: string; version: number };
 type Command = { kind: 'favorite'; index: number } | { kind: 'hud' };
-const editableTarget = 'input, textarea, select, [contenteditable]:not([contenteditable="false"]), [role="combobox"], [role="listbox"], dialog';
+const editableTarget = 'input, textarea, select, [contenteditable]:not([contenteditable="false"]), [role="combobox"][aria-expanded="true"], [role="listbox"], dialog';
 
 function commandForCode(code: unknown): Command | null {
   if (typeof code !== 'string') return null;

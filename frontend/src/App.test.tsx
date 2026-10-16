@@ -224,6 +224,16 @@ describe('dashboard sessions and embedded pages', () => {
     expect(fireEvent.keyDown(window, { key: '™', code: 'Digit2', altKey: true })).toBe(false);
     await screen.findByTitle('Other');
   });
+  it('runs shortcuts from the closed group dropdown but not while its list is open', async () => {
+    await ready();
+    const groups = screen.getByRole('combobox', { name: 'Group' });
+    await userEvent.click(groups);
+    expect(fireEvent.keyDown(screen.getByRole('listbox'), { code: 'Digit2', altKey: true })).toBe(true);
+    await userEvent.click(screen.getByRole('option', { name: 'All sites' }));
+    expect(groups.getAttribute('aria-expanded')).toBe('false');
+    expect(fireEvent.keyDown(groups, { code: 'Digit2', altKey: true })).toBe(false);
+    await screen.findByTitle('Other');
+  });
   it('switches groups from the Alt+G HUD with filtering, cycling, counts, and focus restore', async () => {
     groupNames = ['Personal', 'Sports'];
     data = data.map((favorite, index) => ({ ...favorite, groups: [index === 1 ? 'Sports' : 'Personal'] }));
