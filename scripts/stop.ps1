@@ -1,6 +1,6 @@
 <#
 .SYNOPSIS
-    Stops the running SiteDock server and removes its lock.
+    Disables automatic recovery, stops SiteDock, and removes its lock and PID.
 
 .DESCRIPTION
     Reads the PID from data\server.lock, confirms it is a SiteDock node process,
@@ -12,25 +12,32 @@ param()
 $ErrorActionPreference = 'Stop'
 
 $Root = Split-Path -Parent $PSScriptRoot
+. (Join-Path $PSScriptRoot 'common.ps1')
 $LockFile = Join-Path $Root 'data\server.lock'
+$PidFile = Join-Path $Root 'data\server.pid'
 
-if (-not (Test-Path $LockFile)) {
-    Write-Host 'SiteDock is not running (no server.lock).'
-    return
+if (Get-ScheduledTask -TaskName $TaskName -ErrorAction SilentlyContinue) {
+    Disable-ScheduledTask -TaskName $TaskName -ErrorAction Stop | Out-Null
+    Stop-ScheduledTask -TaskName $TaskName -ErrorAction Stop
 }
 
-$lockPid = (Get-Content $LockFile -Raw).Trim()
-$process = if ($lockPid -match '^\d+$') { Get-CimInstance Win32_Process -Filter "ProcessId=$lockPid" -ErrorAction SilentlyContinue }
-if ($process -and $process.Name -eq 'node.exe' -and $process.CommandLine -like '*dist*server*main.js*') {
-    Stop-Process -Id $lockPid -Force
-    foreach ($attempt in 1..20) {
-        if (-not (Get-Process -Id $lockPid -ErrorAction SilentlyContinue)) { break }
-        Start-Sleep -Milliseconds 250
+$processIds = @(
+    foreach ($file in @($LockFile, $PidFile)) {
+        if (Test-Path $file) { (Get-Content $file -Raw).Trim() }
     }
-    if (Get-Process -Id $lockPid -ErrorAction SilentlyContinue) { throw "SiteDock (PID $lockPid) did not stop." }
-    Write-Host "Stopped SiteDock (PID $lockPid)."
+) | Select-Object -Unique
+foreach ($processId in $processIds) {
+    if (Get-SiteDockProcess $processId) {
+        Stop-Process -Id ([int]$processId) -Force
+        foreach ($attempt in 1..20) {
+            if (-not (Get-Process -Id ([int]$processId) -ErrorAction SilentlyContinue)) { break }
+            Start-Sleep -Milliseconds 250
+        }
+        if (Get-Process -Id ([int]$processId) -ErrorAction SilentlyContinue) { throw "SiteDock (PID $processId) did not stop." }
+        Write-Host "Stopped SiteDock (PID $processId)."
+    }
 }
-else {
-    Write-Host "server.lock named PID $lockPid, which is not a running SiteDock process."
+foreach ($file in @($LockFile, $PidFile)) {
+    if (Test-Path $file) { Remove-Item $file -Force }
 }
-Remove-Item $LockFile -Force
+Write-Host 'SiteDock is stopped. Automatic recovery is disabled until the task is enabled again.'

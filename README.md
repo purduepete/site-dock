@@ -13,7 +13,7 @@ The font is bundled from `@fontsource-variable/roboto-flex` with its open-source
 - Production: `https://jimbrownhome.tail8ad282.ts.net:9443/` on jimbrownhome (443 there belongs to another app), started at logon by the `SiteDock` scheduled task.
 - Previous host: `https://jimbrownlaptop.tail8ad282.ts.net/`, retired after the move.
 - Local: `http://127.0.0.1:8790` on the host.
-- Logs: `data\server.log` and `data\server.err.log`. The running PID is in `data\server.lock`.
+- Logs: `data\server.log` and `data\server.err.log`, with the previous 5 copies numbered `.1` (newest) through `.5`. Startup attempts and failures are timestamped in `data\startup.log` (rotated at 1 MiB to `.1`). The running PID is in `data\server.lock` and `data\server.pid`.
 - Owner setup: `npm run owner -- setup`, in a terminal outside VS Code. There is no default credential.
 
 Validation includes server and frontend tests, Microsoft Edge integration tests, TypeScript checks, production build, development UI/API proxy, and Tailscale HTTPS health. Browser checks rendered Ferry Tracker, SmartDevices, and FitTrack's token-entry screen, and opened ESPN in a separate tab. The UI checks cover custom dropdown placement, groups across browsers and sidebar sizes, modal confirmation and focus restoration, flat action colors, and the 44px desktop toolbar. Source-app authenticated sessions and a second device still require your checks.
@@ -22,6 +22,7 @@ Validation includes server and frontend tests, Microsoft Edge integration tests,
 
 - Node.js 22.12 or later.
 - Windows for the documented hosting commands.
+- Windows Script Host with VBScript enabled for the hidden scheduled-task wrapper.
 - Tailscale on the host and client devices for remote access.
 
 ## Install as a service (Windows)
@@ -34,16 +35,32 @@ Set-Location C:\Files\Dev\main\sitedock
 pwsh -NoProfile -File scripts\install.ps1
 ```
 
-It checks Node and Tailscale, then refuses to continue if Tailscale HTTPS 443 already routes to another app. Use `-HttpsPort 9443` in that case. It imports `sitedock-favorites.json` and `sitedock-owner.json` from Downloads (sent with `tailscale file cp`) without overwriting existing data, and writes `.env` with this machine's Tailscale origin. It then runs `npm ci` and the build, and registers a `SiteDock` logon task. The task runs `scripts\start-hidden.ps1`, which starts node with no console window and clears a `server.lock` left by a reboot or crash. The installer starts the task, waits for `/api/health`, and adds the Tailscale HTTPS route. Re-running it is safe.
+It checks Node and Tailscale, then refuses to continue if Tailscale HTTPS 443 already routes to another app. Use `-HttpsPort 9443` in that case. It imports `sitedock-favorites.json` and `sitedock-owner.json` from Downloads (sent with `tailscale file cp`) without overwriting existing data, and writes `.env` with this machine's Tailscale origin. It then runs `npm ci` and the build, and registers a `SiteDock` logon task with a repeating 1-minute health check. The task runs `scripts\start-hidden.ps1`, which starts node with no console window and clears a `server.lock` left by a reboot or crash. The installer starts the task, waits for `/api/health`, and adds the Tailscale HTTPS route. Re-running it is safe.
 
 | Action | Command |
 |---|---|
 | Update | `npm run update` (pull fast-forward, build, restart; refuses local changes) |
 | Stop | `pwsh -File scripts\stop.ps1` |
-| Start | `Start-ScheduledTask -TaskName SiteDock` |
+| Start | `Enable-ScheduledTask -TaskName SiteDock; Start-ScheduledTask -TaskName SiteDock` |
 | Status | `Invoke-RestMethod http://127.0.0.1:8790/api/health` |
 
-Nothing restarts SiteDock after a crash. Start the task again and read `data\server.err.log`.
+The launcher requires a live SiteDock process, a successful `/api/health` response, and ownership of the configured listening port before reporting success. Each invocation tries up to 3 launches with a 15-second health window and 3-second pauses. Failures return a nonzero task result. Task Scheduler retries failures up to 3 times at 1-minute intervals; the repeating health trigger also recovers later crashes or an unhealthy server. A healthy process keeps its PID and logs. Recovery checks a live server twice before stopping it. Overlapping launches are serialized, and previous logs are preserved before each attempt.
+
+The task uses `wscript.exe` and `scripts\start-task.vbs` to run the PowerShell launcher without a console window, including under Windows Terminal. The wrapper waits for the health-checked launcher and returns its exit code to Task Scheduler. Node still runs separately with both output streams redirected.
+
+`scripts\stop.ps1` disables the task before stopping the server, so the watchdog cannot undo an intentional stop. Enable the task to resume automatic startup and recovery. Recovery requires the owning Windows account to remain logged on. It checks the local server, not Tailscale connectivity.
+
+Existing installations receive watchdog settings through `npm run update`. To apply the settings without rebuilding or restarting a healthy server, run as the owning account:
+
+```powershell
+. .\scripts\common.ps1
+Set-SiteDockWatchdog
+Start-SiteDockTask (Get-Location).Path
+```
+
+The owning account must be allowed to modify, enable, and disable the `SiteDock` scheduled task. A task originally registered by another administrator may grant that account read-only access; an administrator must repair that task's permissions once. Keep the protected `data` directory restricted to the owner.
+
+For a failed launch, read `data\startup.log`, `data\server.err.log`, and the numbered previous logs, then inspect `Get-ScheduledTaskInfo -TaskName SiteDock`. Run `npm run test:startup` for isolated Windows startup/recovery regression tests.
 
 Sending data from the old host:
 

@@ -15,8 +15,9 @@
     "build": "npm run typecheck && tsc -p tsconfig.server.json && vite build --config frontend/vite.config.ts",
     "test:server": "tsc -p tsconfig.server.json && node --test dist/server/*.test.js",
     "test:frontend": "vitest run --config frontend/vite.config.ts",
-    "test": "npm run test:server && npm run test:frontend",
+    "test": "npm run test:server && npm run test:frontend && npm run test:startup",
     "test:e2e": "playwright test",
+    "test:startup": "node --test tests/startup.test.mjs",
     "owner": "node --env-file-if-exists=.env --import tsx server/owner.ts",
     "start": "node --env-file-if-exists=.env dist/server/main.js",
     "update": "pwsh -NoProfile -File scripts/update.ps1"

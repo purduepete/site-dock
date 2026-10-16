@@ -32,5 +32,6 @@ npm run build
 if ($LASTEXITCODE) { throw 'npm run build failed. The running server was left in place.' }
 
 & (Join-Path $PSScriptRoot 'stop.ps1')
+Set-SiteDockWatchdog
 Start-SiteDockTask $Root
 Write-Host "Updated $($before.Substring(0, 7)) -> $($after.Substring(0, 7))."

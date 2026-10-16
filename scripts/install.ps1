@@ -95,10 +95,7 @@ if ($LASTEXITCODE) { throw 'npm run build failed.' }
 
 Step 'Registering the SiteDock logon task'
 & (Join-Path $PSScriptRoot 'stop.ps1')
-$exe = (Get-Command pwsh.exe -ErrorAction SilentlyContinue)?.Source
-if (-not $exe) { $exe = (Get-Command powershell.exe).Source }
-$launcher = Join-Path $PSScriptRoot 'start-hidden.ps1'
-$action = New-ScheduledTaskAction -Execute $exe -Argument "-NoProfile -WindowStyle Hidden -ExecutionPolicy Bypass -File `"$launcher`"" -WorkingDirectory $Root
+$action = New-SiteDockTaskAction $Root
 $trigger = New-ScheduledTaskTrigger -AtLogOn -User $env:USERNAME
 $principal = New-ScheduledTaskPrincipal -UserId $env:USERNAME -LogonType Interactive -RunLevel Limited
 $settings = New-ScheduledTaskSettingsSet -AllowStartIfOnBatteries -DontStopIfGoingOnBatteries -ExecutionTimeLimit 0 -MultipleInstances IgnoreNew
@@ -107,6 +104,7 @@ if (Get-ScheduledTask -TaskName $TaskName -ErrorAction SilentlyContinue) {
 }
 Register-ScheduledTask -TaskName $TaskName -Action $action -Trigger $trigger -Principal $principal -Settings $settings `
     -Description 'SiteDock favorites dashboard (hidden node server on 127.0.0.1).' | Out-Null
+Set-SiteDockWatchdog
 Start-SiteDockTask $Root
 
 if ($tailscale -and -not $SkipTailscale) {
