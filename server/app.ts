@@ -149,7 +149,7 @@ export function createApp(config: Config, options: Options = {}) {
       let content: Buffer;
       try { content = await readFile(file); } catch { send(res, 404, { error: 'Not found.' }); return; }
       const mime: Record<string, string> = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.css': 'text/css; charset=utf-8', '.svg': 'image/svg+xml', '.png': 'image/png', '.ico': 'image/x-icon', '.woff2': 'font/woff2' };
-      res.writeHead(200, { 'Content-Type': mime[extname(file)] ?? 'application/octet-stream' });
+      res.writeHead(200, { 'Content-Type': mime[extname(file)] ?? 'application/octet-stream', ...(decoded === '/sitedock-keys.js' ? { 'Cross-Origin-Resource-Policy': 'cross-origin' } : {}) });
       res.end(req.method === 'HEAD' ? undefined : content);
     } catch (error) {
       if (error instanceof SetupRequiredError) { send(res, 503, { error: error.message, setupRequired: true }); return; }

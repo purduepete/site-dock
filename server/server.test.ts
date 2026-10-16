@@ -176,6 +176,7 @@ test('HTTP authentication, persistence, reset, origin/proxy boundaries and stati
   config.distDir = join(directory, 'frontend');
   await mkdir(config.distDir);
   await writeFile(join(config.distDir, 'index.html'), '<!doctype html>SiteDock');
+  await writeFile(join(config.distDir, 'sitedock-keys.js'), '// forwarder');
   await writeFile(join(directory, 'private.txt'), 'private');
   const storage = new Storage(directory, [...config.localOrigins, config.remoteOrigin!]);
   await storage.initialize();
@@ -263,6 +264,11 @@ test('HTTP authentication, persistence, reset, origin/proxy boundaries and stati
     assert.match(page.text, /SiteDock/);
     assert.equal(page.headers['x-frame-options'], 'DENY');
     assert.match(String(page.headers['content-security-policy']), /frame-ancestors 'none'/);
+    assert.equal(page.headers['cross-origin-resource-policy'], undefined);
+    const keys = await call('/sitedock-keys.js');
+    assert.equal(keys.status, 200);
+    assert.match(String(keys.headers['content-type']), /^text\/javascript/);
+    assert.equal(keys.headers['cross-origin-resource-policy'], 'cross-origin');
     for (const path of ['/owner.json', '/%2e%2e%5cprivate.txt', '/.hidden']) assert.notEqual((await call(path)).status, 200);
     await writeFile(join(directory, 'owner.json'), '{broken');
     assert.equal((await call('/api/session')).status, 503);

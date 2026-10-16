@@ -6,11 +6,27 @@ import { Dropdown } from './Dropdown';
 import { DeleteFavoriteDialog } from './DeleteFavoriteDialog';
 import { SiteIcon } from './SiteIcon';
 import { CreateGroupDialog } from './CreateGroupDialog';
+import { GroupHud } from './GroupHud';
 
 const localOrigins = ['localhost', '127.0.0.1', '[::1]'].flatMap(host => [8790, 5173].map(port => `http://${host}:${port}`));
 const ownOrigins = [...localOrigins, location.origin, ...(import.meta.env.VITE_SITE_ORIGINS ?? '').split(',').map((value: string) => value.trim()).filter(Boolean)];
 const message = (error: unknown) => error instanceof Error ? error.message : 'The request failed. Please try again.';
 type Frame = { id: string; url: string; version: number };
+type Command = { kind: 'favorite'; index: number } | { kind: 'hud' };
+const editableTarget = 'input, textarea, select, [contenteditable]:not([contenteditable="false"]), [role="combobox"], [role="listbox"], dialog';
+
+function commandForCode(code: unknown): Command | null {
+  if (typeof code !== 'string') return null;
+  if (code === 'KeyG') return { kind: 'hud' };
+  const digit = /^Digit([1-9])$/.exec(code);
+  return digit ? { kind: 'favorite', index: Number(digit[1]) - 1 } : null;
+}
+
+function keyCommand(event: KeyboardEvent): Command | null {
+  if (!event.altKey || event.ctrlKey || event.shiftKey || event.metaKey || event.repeat || event.isComposing || event.defaultPrevented) return null;
+  if (event.getModifierState?.('AltGraph')) return null;
+  return commandForCode(event.code);
+}
 
 function Conflict({ current, accept, discard }: { current: Store; accept: () => void; discard: () => void }) {
   return <section className="conflict" aria-label="Concurrent changes">
@@ -93,31 +109,76 @@ export function App() {
   const saving = useRef(false);
   const resizeOrigin = useRef({ x: 0, width: 280 });
   const favoriteControls = useRef(new Map<string, HTMLButtonElement | HTMLAnchorElement>());
+  const frameElements = useRef(new Map<string, HTMLIFrameElement>());
+  const openLink = useRef<HTMLAnchorElement>(null);
+  const focusOpenLink = useRef(false);
+  const hudReturn = useRef<HTMLElement | null>(null);
+  const [hudOpen, setHudOpen] = useState(false);
   const visibleFavorites = useMemo(() => draft.filter(favorite => groupFilter === 'all' ||
     favorite.groups?.includes(groupFilter.slice(6))), [draft, groupFilter]);
+  const current = draft.find(item => item.id === selected);
+
+  // Native keys and forwarded iframe messages share this dispatcher, which re-checks auth and modal state.
+  function runCommand(command: Command, forwarded: boolean) {
+    if (!auth.current || editor || deleteTarget || creatingGroup || hudOpen) return false;
+    focusOpenLink.current = false;
+    if (command.kind === 'hud') {
+      const frame = forwarded && current ? frameElements.current.get(current.id) : undefined;
+      hudReturn.current = frame ?? (document.activeElement instanceof HTMLElement ? document.activeElement : null);
+      if (forwarded) window.focus();
+      setHudOpen(true);
+      return true;
+    }
+    const favorite = visibleFavorites[command.index];
+    const control = favorite && favoriteControls.current.get(favorite.id);
+    if (!control) return false;
+    if (forwarded) { window.focus(); control.focus(); }
+    control.click();
+    // A forwarded key carries no user activation, so the browser may block the new tab.
+    if (forwarded && isExternal(favorite)) focusOpenLink.current = true;
+    return true;
+  }
+  const latest = useRef({ runCommand, current, hudOpen });
+  latest.current = { runCommand, current, hudOpen };
 
   useEffect(() => {
     if (!session?.authenticated) return;
     function shortcut(event: KeyboardEvent) {
-      if (!event.ctrlKey || event.altKey || event.shiftKey || event.metaKey || event.repeat || event.isComposing || event.defaultPrevented || !/^[1-9]$/.test(event.key)) return;
-      const target = event.target;
-      if (editor || deleteTarget || creatingGroup || (target instanceof Element && target.closest('input, textarea, select, [contenteditable]:not([contenteditable="false"]), [role="combobox"], [role="listbox"], dialog'))) return;
-      const favorite = visibleFavorites[Number(event.key) - 1];
-      const control = favorite && favoriteControls.current.get(favorite.id);
-      if (!control) return;
-      event.preventDefault();
-      control.click();
+      const command = keyCommand(event);
+      if (!command || latest.current.hudOpen) return;
+      if (event.target instanceof Element && event.target.closest(editableTarget)) return;
+      if (latest.current.runCommand(command, false)) event.preventDefault();
+    }
+    function forwarded(event: MessageEvent) {
+      const data: unknown = event.data;
+      if (!data || typeof data !== 'object' || (data as { type?: unknown }).type !== 'sitedock:key') return;
+      const command = commandForCode((data as { code?: unknown }).code);
+      const favorite = latest.current.current;
+      if (!command || !favorite || isExternal(favorite)) return;
+      const frame = frameElements.current.get(favorite.id);
+      if (!frame?.contentWindow || event.source !== frame.contentWindow) return;
+      let origin: string;
+      try { origin = new URL(favorite.url).origin; } catch { return; }
+      if (event.origin !== origin) return;
+      latest.current.runCommand(command, true);
     }
     window.addEventListener('keydown', shortcut);
-    return () => window.removeEventListener('keydown', shortcut);
-  }, [session?.authenticated, visibleFavorites, editor, deleteTarget, creatingGroup]);
+    window.addEventListener('message', forwarded);
+    return () => { window.removeEventListener('keydown', shortcut); window.removeEventListener('message', forwarded); };
+  }, [session?.authenticated]);
+
+  useEffect(() => {
+    if (!focusOpenLink.current || !current || !isExternal(current)) return;
+    focusOpenLink.current = false;
+    openLink.current?.focus();
+  });
 
   function clearSession(reason = '') {
     generation.current++;
     auth.current = false;
     saving.current = false;
     setSession({ authenticated: false });
-    setStore(null); setDraft([]); setGroups([]); setCreatingGroup(false); setFrames([]); setEditor(null); setDeleteTarget(null); setConflict(null);
+    setStore(null); setDraft([]); setGroups([]); setCreatingGroup(false); setHudOpen(false); setFrames([]); setEditor(null); setDeleteTarget(null); setConflict(null);
     setPending(false); setBusy(false); setSidebar(false); setResizing(false); setError(reason);
   }
 
@@ -236,7 +297,6 @@ export function App() {
     try { await api('logout', {}); }
     catch (cause) { setError(`The dashboard is cleared, but server sign-out could not be confirmed. Retry sign-out before leaving this browser. ${message(cause)}`); }
   }
-  const current = draft.find(item => item.id === selected);
   const conflictPanel = conflict && <Conflict current={conflict} accept={() => {
     setStore(conflict); setConflict(null); setError('Pending list retained. Review it, then save to replace the latest server list.');
   }} discard={() => {
@@ -269,6 +329,14 @@ export function App() {
       }
       return false;
     }} />}
+    {hudOpen && <GroupHud current={groupFilter} returnTo={hudReturn.current} options={[
+      { value: 'all', label: 'All sites', count: draft.length },
+      ...groups.map(name => ({ value: `group:${name}`, label: name, count: draft.filter(favorite => favorite.groups?.includes(name)).length })),
+    ]} onClose={() => setHudOpen(false)} onApply={value => {
+      setHudOpen(false);
+      filterGroup(value);
+      setAnnouncement(`Showing ${value === 'all' ? 'all sites' : value.slice(6)}.`);
+    }} />}
     {deleteTarget && <DeleteFavoriteDialog favorite={deleteTarget} onCancel={() => setDeleteTarget(null)} onConfirm={() => {
       setDeleteTarget(null);
       void save(draft.filter(item => item.id !== deleteTarget.id));
@@ -280,7 +348,7 @@ export function App() {
         setMinimized(next); setResizing(false); savePreference('sidebar-minimized', String(next));
       }}>S</button>SiteDock</span><button className="mobile-only" aria-label="Close favorites" onClick={() => setSidebar(false)}><Icon name="close" /></button></div>
       <div className="section-heading list-heading"><span className="eyebrow">FAVORITES <span className="count">{visibleFavorites.length}</span></span><button aria-label="Add favorite" disabled={!store || busy} onClick={() => { setEditor({ id: crypto.randomUUID(), name: '', url: '', mode: 'embed', ...(groupFilter.startsWith('group:') ? { groups: [groupFilter.slice(6)] } : {}) }); setSidebar(false); }}><Icon name="plus" /></button></div>
-      <div className="group-filter"><Dropdown label="Group" value={groupFilter} options={[
+      <div className="group-filter" title="Switch group (Alt+G)"><Dropdown label="Group" value={groupFilter} options={[
         { value: 'all', label: 'All sites' },
         ...groups.map(name => ({ value: `group:${name}`, label: name })),
         { value: 'create', label: 'Create group...' },
@@ -293,8 +361,8 @@ export function App() {
         {visibleFavorites.map((favorite, index) => <div key={favorite.id} className={`favorite ${selected === favorite.id ? 'selected' : ''}`}>
           <div className="favorite-main">
             <SiteIcon key={favorite.url} url={favorite.url} name={favorite.name} />
-            {isExternal(favorite) ? <a ref={element => { if (element) favoriteControls.current.set(favorite.id, element); else favoriteControls.current.delete(favorite.id); }} className="favorite-select" aria-label={`Open ${favorite.name} in a separate tab`} aria-keyshortcuts={index < 9 ? `Control+${index + 1}` : undefined} title={index < 9 ? `${favorite.name} (Ctrl+${index + 1})` : favorite.name} href={favorite.url} target="_blank" rel="noopener noreferrer" aria-current={selected === favorite.id ? 'page' : undefined} onClick={() => choose(favorite.id)}><span>{favorite.name}</span><small>Separate tab{index < 9 && <kbd>Ctrl+{index + 1}</kbd>}</small></a> :
-              <button ref={element => { if (element) favoriteControls.current.set(favorite.id, element); else favoriteControls.current.delete(favorite.id); }} className="favorite-select" aria-label={favorite.name} aria-keyshortcuts={index < 9 ? `Control+${index + 1}` : undefined} title={index < 9 ? `${favorite.name} (Ctrl+${index + 1})` : favorite.name} aria-current={selected === favorite.id ? 'page' : undefined} onClick={() => choose(favorite.id)}><span>{favorite.name}</span><small>{new URL(favorite.url).hostname}{index < 9 && <kbd>Ctrl+{index + 1}</kbd>}</small></button>}
+            {isExternal(favorite) ? <a ref={element => { if (element) favoriteControls.current.set(favorite.id, element); else favoriteControls.current.delete(favorite.id); }} className="favorite-select" aria-label={`Open ${favorite.name} in a separate tab`} aria-keyshortcuts={index < 9 ? `Alt+${index + 1}` : undefined} title={index < 9 ? `${favorite.name} (Alt+${index + 1})` : favorite.name} href={favorite.url} target="_blank" rel="noopener noreferrer" aria-current={selected === favorite.id ? 'page' : undefined} onClick={() => choose(favorite.id)}><span>{favorite.name}</span><small>Separate tab{index < 9 && <kbd>Alt+{index + 1}</kbd>}</small></a> :
+              <button ref={element => { if (element) favoriteControls.current.set(favorite.id, element); else favoriteControls.current.delete(favorite.id); }} className="favorite-select" aria-label={favorite.name} aria-keyshortcuts={index < 9 ? `Alt+${index + 1}` : undefined} title={index < 9 ? `${favorite.name} (Alt+${index + 1})` : favorite.name} aria-current={selected === favorite.id ? 'page' : undefined} onClick={() => choose(favorite.id)}><span>{favorite.name}</span><small>{new URL(favorite.url).hostname}{index < 9 && <kbd>Alt+{index + 1}</kbd>}</small></button>}
             {isExternal(favorite) && <Icon name="external" />}
           </div>
           <div className="favorite-actions">
@@ -337,12 +405,16 @@ export function App() {
         {frames.map(frame => {
           const key = `${frame.id}:${frame.url}:${frame.version}`;
           const active = selected === frame.id;
-          return <iframe key={key} title={draft.find(item => item.id === frame.id)?.name ?? 'Favorite website'} src={frame.url}
+          return <iframe key={key} ref={element => {
+            if (!element) return;
+            frameElements.current.set(frame.id, element);
+            return () => { if (frameElements.current.get(frame.id) === element) frameElements.current.delete(frame.id); };
+          }} title={draft.find(item => item.id === frame.id)?.name ?? 'Favorite website'} src={frame.url}
             className={`site-frame${active ? ' active' : ''}${loadedFrames.has(key) ? ' loaded' : ''}`} aria-hidden={active ? undefined : true} inert={!active}
             onLoad={() => setLoadedFrames(previous => previous.has(key) ? previous : new Set(previous).add(key))}
             sandbox="allow-scripts allow-same-origin allow-forms allow-popups allow-popups-to-escape-sandbox" referrerPolicy="no-referrer" />;
         })}
-        {current && isExternal(current) && <section className="empty-state"><div className="state-icon"><Icon name="external" /></div><p className="eyebrow">SEPARATE TAB</p><h2>{current.name}</h2><p>{current.mode === 'embed' ? 'This site uses HTTP. Your HTTPS connection prevents it from being embedded here.' : 'This favorite is set to open in a separate browser tab.'}</p><a className="button primary" href={current.url} target="_blank" rel="noopener noreferrer"><Icon name="external" />Open {current.name}</a><p className="muted">Your browser may require a separate sign-in.</p></section>}
+        {current && isExternal(current) && <section className="empty-state"><div className="state-icon"><Icon name="external" /></div><p className="eyebrow">SEPARATE TAB</p><h2>{current.name}</h2><p>{current.mode === 'embed' ? 'This site uses HTTP. Your HTTPS connection prevents it from being embedded here.' : 'This favorite is set to open in a separate browser tab.'}</p><a ref={openLink} className="button primary" href={current.url} target="_blank" rel="noopener noreferrer"><Icon name="external" />Open {current.name}</a><p className="muted">Your browser may require a separate sign-in.</p></section>}
         {!current && store && <section className="empty-state"><div className="state-icon"><Icon name="plus" /></div><p className="eyebrow">MAKE ROOM FOR YOUR ROUTINE</p><h2>Your sites start here.</h2><p>Add a favorite, then keep your everyday sites close at hand.</p><button className="primary" onClick={() => setEditor({ id: crypto.randomUUID(), name: '', url: '', mode: 'embed' })}><Icon name="plus" />Add favorite</button></section>}
       </div>
       {current && !isExternal(current) && <footer className="frame-note">Site blank or sign-in blocked? Use <a href={current.url} target="_blank" rel="noopener noreferrer">Open tab</a>. Reload returns to the saved address. Hidden sites may keep running.</footer>}

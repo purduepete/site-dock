@@ -128,12 +128,12 @@ describe('dashboard sessions and embedded pages', () => {
     await userEvent.click(screen.getByRole('option', { name: 'Personal' }));
     const external = screen.getByRole('link', { name: 'Open News in a separate tab' });
     const activate = vi.spyOn(external, 'click').mockImplementation(() => {});
-    fireEvent.keyDown(window, { key: '2', ctrlKey: true });
+    fireEvent.keyDown(window, { code: 'Digit2', altKey: true });
     expect(activate).toHaveBeenCalledOnce();
     await userEvent.click(screen.getByRole('button', { name: 'Move Example down' }));
     await waitFor(() => expect(data.map(favorite => favorite.id)).toEqual(['three', 'two', 'one']));
     expect(groupNames).toEqual(['Personal', 'Sports']);
-    expect(screen.getByRole('button', { name: 'Example' }).getAttribute('aria-keyshortcuts')).toBe('Control+2');
+    expect(screen.getByRole('button', { name: 'Example' }).getAttribute('aria-keyshortcuts')).toBe('Alt+2');
     expect(screen.getByRole('button', { name: 'Move Example down' }).hasAttribute('disabled')).toBe(true);
   });
 
@@ -188,36 +188,123 @@ describe('dashboard sessions and embedded pages', () => {
     expect(document.querySelector('.app')?.classList.contains('sidebar-minimized')).toBe(false);
     expect(screen.getByTitle('Example')).toBe(frame);
   });
-  it('activates favorites by Ctrl+number and follows reordered positions', async () => {
+  it('activates favorites by Alt+number and follows reordered positions', async () => {
     await ready();
-    expect(fireEvent.keyDown(window, { key: '2', ctrlKey: true })).toBe(false);
+    expect(fireEvent.keyDown(window, { code: 'Digit2', altKey: true })).toBe(false);
     await screen.findByTitle('Other');
     expect(screen.getByRole('button', { name: 'Other' }).getAttribute('aria-current')).toBe('page');
     const external = screen.getByRole('link', { name: 'Open News in a separate tab' });
     const activate = vi.spyOn(external, 'click').mockImplementation(() => {});
-    fireEvent.keyDown(window, { key: '3', ctrlKey: true });
+    fireEvent.keyDown(window, { code: 'Digit3', altKey: true });
     expect(activate).toHaveBeenCalledOnce();
     await userEvent.click(screen.getByRole('button', { name: 'Move Example down' }));
     await waitFor(() => expect(data[0].id).toBe('two'));
-    fireEvent.keyDown(window, { key: '1', ctrlKey: true });
+    fireEvent.keyDown(window, { code: 'Digit1', altKey: true });
     expect(screen.getByRole('button', { name: 'Other' }).getAttribute('aria-current')).toBe('page');
-    expect(screen.getByRole('button', { name: 'Other' }).getAttribute('aria-keyshortcuts')).toBe('Control+1');
+    expect(screen.getByRole('button', { name: 'Other' }).getAttribute('aria-keyshortcuts')).toBe('Alt+1');
   });
   it('ignores unavailable numbers, other modifiers, repeats, forms, and modals', async () => {
     await ready();
     for (const properties of [
-      { key: '2' }, { key: '2', ctrlKey: true, altKey: true },
-      { key: '2', ctrlKey: true, shiftKey: true }, { key: '2', ctrlKey: true, repeat: true },
-      { key: '0', ctrlKey: true }, { key: '9', ctrlKey: true },
+      { code: 'Digit2' }, { code: 'Digit2', altKey: true, ctrlKey: true }, { key: '2', ctrlKey: true },
+      { code: 'Digit2', altKey: true, shiftKey: true }, { code: 'Digit2', altKey: true, metaKey: true }, { code: 'Digit2', altKey: true, repeat: true },
+      { code: 'Digit0', altKey: true }, { code: 'Digit9', altKey: true }, { code: 'Numpad2', altKey: true },
     ]) expect(fireEvent.keyDown(window, properties)).toBe(true);
     expect(screen.queryByTitle('Other')).toBeNull();
     await userEvent.click(screen.getByRole('button', { name: 'Edit Example' }));
-    expect(fireEvent.keyDown(screen.getByLabelText('Name'), { key: '2', ctrlKey: true })).toBe(true);
+    expect(fireEvent.keyDown(screen.getByLabelText('Name'), { code: 'Digit2', altKey: true })).toBe(true);
     expect(screen.queryByTitle('Other')).toBeNull();
     await userEvent.click(screen.getAllByRole('button', { name: 'Close editor' })[0]);
     await userEvent.click(screen.getByRole('button', { name: 'Delete Example' }));
-    expect(fireEvent.keyDown(window, { key: '2', ctrlKey: true })).toBe(true);
+    expect(fireEvent.keyDown(window, { code: 'Digit2', altKey: true })).toBe(true);
     expect(screen.queryByTitle('Other')).toBeNull();
+  });
+  it('matches the physical key so macOS Option characters still activate favorites', async () => {
+    await ready();
+    expect(fireEvent.keyDown(window, { key: '™', code: 'Digit2', altKey: true })).toBe(false);
+    await screen.findByTitle('Other');
+  });
+  it('switches groups from the Alt+G HUD with filtering, cycling, counts, and focus restore', async () => {
+    groupNames = ['Personal', 'Sports'];
+    data = data.map((favorite, index) => ({ ...favorite, groups: [index === 1 ? 'Sports' : 'Personal'] }));
+    await ready();
+    const reload = screen.getByRole('button', { name: 'Reload selected site' });
+    reload.focus();
+    expect(fireEvent.keyDown(window, { key: '©', code: 'KeyG', altKey: true })).toBe(false);
+    const hud = await screen.findByRole('dialog', { name: 'Switch group' });
+    const filter = screen.getByRole('combobox', { name: 'Filter groups' });
+    expect(document.activeElement).toBe(filter);
+    const options = () => screen.getAllByRole('option').filter(option => hud.contains(option));
+    expect(options().map(option => option.textContent)).toEqual(['All sites3', 'Personal2', 'Sports1']);
+    expect(options()[0].getAttribute('aria-selected')).toBe('true');
+    expect(fireEvent.keyDown(filter, { code: 'KeyG', altKey: true })).toBe(false);
+    expect(options()[1].getAttribute('aria-selected')).toBe('true');
+    expect(filter.getAttribute('aria-activedescendant')).toBe(options()[1].id);
+    fireEvent.keyDown(filter, { code: 'KeyG', altKey: true });
+    fireEvent.keyDown(filter, { code: 'KeyG', altKey: true });
+    expect(options()[0].getAttribute('aria-selected')).toBe('true');
+    expect(fireEvent.keyDown(filter, { code: 'Digit2', altKey: true })).toBe(true);
+    expect(screen.queryByTitle('Other')).toBeNull();
+    await userEvent.type(filter, 'zzz');
+    expect(screen.getByText('No matching groups')).toBeTruthy();
+    fireEvent.keyDown(filter, { key: 'Enter' });
+    fireEvent.keyDown(filter, { code: 'KeyG', altKey: true });
+    expect(screen.getByRole('dialog', { name: 'Switch group' })).toBeTruthy();
+    await userEvent.clear(filter);
+    await userEvent.type(filter, 'sp');
+    expect(options().map(option => option.textContent)).toEqual(['Sports1']);
+    await userEvent.keyboard('{Enter}');
+    expect(screen.queryByRole('dialog', { name: 'Switch group' })).toBeNull();
+    expect(screen.getByRole('combobox', { name: 'Group' }).textContent).toBe('Sports');
+    expect(localStorage.getItem('sitedock.group')).toBe('group:Sports');
+    expect(document.activeElement).toBe(reload);
+    fireEvent.keyDown(window, { code: 'KeyG', altKey: true });
+    await screen.findByRole('dialog', { name: 'Switch group' });
+    fireEvent.keyDown(screen.getByRole('combobox', { name: 'Filter groups' }), { key: 'ArrowUp' });
+    fireEvent(screen.getByRole('dialog', { name: 'Switch group' }), new Event('cancel', { cancelable: true }));
+    expect(screen.queryByRole('dialog', { name: 'Switch group' })).toBeNull();
+    expect(screen.getByRole('combobox', { name: 'Group' }).textContent).toBe('Sports');
+  });
+  it('does not open the HUD from form fields or while another modal is open', async () => {
+    await ready();
+    await userEvent.click(screen.getByRole('button', { name: 'Edit Example' }));
+    expect(fireEvent.keyDown(screen.getByLabelText('Name'), { code: 'KeyG', altKey: true })).toBe(true);
+    expect(fireEvent.keyDown(window, { code: 'KeyG', altKey: true })).toBe(true);
+    expect(screen.queryByRole('dialog', { name: 'Switch group' })).toBeNull();
+  });
+  it('accepts forwarded keys only from the active frame and its exact origin', async () => {
+    await ready();
+    const frame = screen.getByTitle('Example') as HTMLIFrameElement;
+    const post = (data: unknown, origin = 'https://example.com', source: MessageEventSource | null = frame.contentWindow) =>
+      fireEvent(window, new MessageEvent('message', { data, origin, source }));
+    post({ type: 'sitedock:key', code: 'Digit2' }, 'https://evil.example');
+    post({ type: 'sitedock:key', code: 'Digit2' }, 'https://example.com', window);
+    post({ type: 'sitedock:key', code: 'Digit2' }, 'https://example.com', null);
+    for (const data of [null, 'Digit2', { type: 'other', code: 'Digit2' }, { type: 'sitedock:key', code: 'Digit0' },
+      { type: 'sitedock:key', code: 'Digit22' }, { type: 'sitedock:key', code: 2 }, { type: 'sitedock:key', code: 'KeyH' }]) post(data);
+    expect(screen.queryByTitle('Other')).toBeNull();
+    post({ type: 'sitedock:key', code: 'Digit2' });
+    await screen.findByTitle('Other');
+    expect(screen.getByRole('button', { name: 'Other' }).getAttribute('aria-current')).toBe('page');
+    expect(document.activeElement).toBe(screen.getByRole('button', { name: 'Other' }));
+    post({ type: 'sitedock:key', code: 'Digit1' });
+    expect(screen.getByRole('button', { name: 'Other' }).getAttribute('aria-current')).toBe('page');
+    const other = screen.getByTitle('Other') as HTMLIFrameElement;
+    post({ type: 'sitedock:key', code: 'KeyG' }, 'https://example.org', other.contentWindow);
+    expect(await screen.findByRole('dialog', { name: 'Switch group' })).toBeTruthy();
+    fireEvent(screen.getByRole('dialog', { name: 'Switch group' }), new Event('cancel', { cancelable: true }));
+    await userEvent.click(screen.getByRole('button', { name: 'Edit Other' }));
+    post({ type: 'sitedock:key', code: 'KeyG' }, 'https://example.org', other.contentWindow);
+    expect(screen.queryByRole('dialog', { name: 'Switch group' })).toBeNull();
+  });
+  it('focuses the open link when a forwarded key selects a separate-tab favorite', async () => {
+    await ready();
+    const frame = screen.getByTitle('Example') as HTMLIFrameElement;
+    const external = screen.getByRole('link', { name: 'Open News in a separate tab' });
+    const activate = vi.spyOn(external, 'click').mockImplementation(() => { external.dispatchEvent(new MouseEvent('click', { bubbles: true })); });
+    fireEvent(window, new MessageEvent('message', { data: { type: 'sitedock:key', code: 'Digit3' }, origin: 'https://example.com', source: frame.contentWindow }));
+    expect(activate).toHaveBeenCalledOnce();
+    await waitFor(() => expect(document.activeElement?.textContent).toBe('Open News'));
   });
   it('retains visited frames and reloads only the selected frame from its configured URL', async () => {
     await ready();

@@ -196,7 +196,7 @@ test('creates shared groups and filters favorites in expanded, minimized and mob
   await groups.click();
   await page.getByRole('option', { name: 'Sports', exact: true }).click();
   await expect(page.locator('.favorite')).toHaveCount(1);
-  await expect(page.getByRole('link', { name: 'Open ESPN in a separate tab' })).toHaveAttribute('aria-keyshortcuts', 'Control+1');
+  await expect(page.getByRole('link', { name: 'Open ESPN in a separate tab' })).toHaveAttribute('aria-keyshortcuts', 'Alt+1');
   await page.getByRole('button', { name: 'Minimize favorites' }).click();
   await expect(groups).toBeVisible();
   await groups.click();
@@ -259,4 +259,64 @@ test('creates shared groups and filters favorites in expanded, minimized and mob
   } finally {
     await other.close();
   }
+});
+
+test('forwards Alt shortcuts from a cooperating second-origin frame and switches groups from the HUD', async ({ page }) => {
+  await page.goto('/');
+  await page.getByLabel(/username/i).fill('browser-owner');
+  await page.getByLabel(/^password/i).fill('browser-test-password-123');
+  await page.getByRole('button', { name: /sign in/i }).click();
+  await page.getByRole('button', { name: 'Add favorite' }).first().click();
+  await page.getByLabel('Name', { exact: true }).fill('Keys Fixture');
+  await page.getByLabel('Website address').fill('http://127.0.0.1:18791/');
+  await page.getByRole('button', { name: 'Save favorite', exact: true }).click();
+  const host = page.locator('iframe[title="Keys Fixture"]');
+  await expect(host).toHaveClass(/active/);
+  const child = page.frameLocator('iframe[title="Keys Fixture"]');
+  await child.getByRole('button', { name: 'Fixture body' }).click();
+
+  await page.keyboard.press('Alt+g');
+  const hud = page.getByRole('dialog', { name: 'Switch group' });
+  await expect(hud).toBeVisible();
+  const filter = page.getByRole('combobox', { name: 'Filter groups' });
+  await expect(filter).toBeFocused();
+  await page.keyboard.type('x');
+  await expect(filter).toHaveValue('x');
+  await page.screenshot({ path: 'test-results/group-hud.png' });
+  await page.keyboard.press('Escape');
+  await expect(hud).toHaveCount(0);
+  expect(await host.evaluate(element => document.activeElement === element)).toBe(true);
+
+  await child.getByRole('textbox', { name: 'Fixture field' }).click();
+  await page.keyboard.press('Alt+g');
+  await page.waitForTimeout(300);
+  await expect(hud).toHaveCount(0);
+
+  await child.getByRole('button', { name: 'Fixture body' }).click();
+  const second = page.locator('button.favorite-select[aria-keyshortcuts="Alt+2"]');
+  await page.keyboard.press('Alt+2');
+  await expect(second).toHaveAttribute('aria-current', 'page');
+  await expect(host).not.toHaveClass(/active/);
+
+  const fixtureFrame = page.frames().find(frame => frame.url().startsWith('http://127.0.0.1:18791'))!;
+  await fixtureFrame.evaluate(() => parent.postMessage({ type: 'sitedock:key', code: 'KeyG' }, 'http://127.0.0.1:18790'));
+  await page.waitForTimeout(300);
+  await expect(hud).toHaveCount(0);
+
+  await page.locator('body').click({ position: { x: 600, y: 10 } });
+  await page.keyboard.press('Alt+g');
+  await expect(hud).toBeVisible();
+  for (const theme of ['Dark', 'Light']) {
+    await page.keyboard.press('Escape');
+    await page.getByRole('combobox', { name: 'Theme' }).click();
+    await page.getByRole('option', { name: theme, exact: true }).click();
+    await page.locator('body').click({ position: { x: 600, y: 10 } });
+    await page.keyboard.press('Alt+g');
+    await expect(hud).toBeVisible();
+    await page.screenshot({ path: `test-results/group-hud-${theme.toLowerCase()}.png` });
+  }
+  await page.keyboard.type('Sports');
+  await page.keyboard.press('Enter');
+  await expect(hud).toHaveCount(0);
+  await expect(page.getByRole('combobox', { name: 'Group', exact: true })).toHaveText('Sports');
 });
