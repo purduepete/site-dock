@@ -208,7 +208,7 @@ describe('dashboard sessions and embedded pages', () => {
     for (const properties of [
       { code: 'Digit2' }, { code: 'Digit2', altKey: true, ctrlKey: true }, { key: '2', ctrlKey: true },
       { code: 'Digit2', altKey: true, shiftKey: true }, { code: 'Digit2', altKey: true, metaKey: true }, { code: 'Digit2', altKey: true, repeat: true },
-      { code: 'Digit0', altKey: true }, { code: 'Digit9', altKey: true }, { code: 'Numpad2', altKey: true },
+      { code: 'Digit0', altKey: true }, { code: 'Digit9', altKey: true }, { code: 'Numpad0', altKey: true }, { code: 'Numpad9', altKey: true },
     ]) expect(fireEvent.keyDown(window, properties)).toBe(true);
     expect(screen.queryByTitle('Other')).toBeNull();
     await userEvent.click(screen.getByRole('button', { name: 'Edit Example' }));
@@ -222,6 +222,11 @@ describe('dashboard sessions and embedded pages', () => {
   it('matches the physical key so macOS Option characters still activate favorites', async () => {
     await ready();
     expect(fireEvent.keyDown(window, { key: '™', code: 'Digit2', altKey: true })).toBe(false);
+    await screen.findByTitle('Other');
+  });
+  it('accepts numpad digits with or without Num Lock', async () => {
+    await ready();
+    expect(fireEvent.keyDown(window, { key: 'ArrowDown', code: 'Numpad2', altKey: true })).toBe(false);
     await screen.findByTitle('Other');
   });
   it('runs shortcuts from the closed group dropdown but not while its list is open', async () => {

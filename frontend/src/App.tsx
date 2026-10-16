@@ -18,7 +18,7 @@ const editableTarget = 'input, textarea, select, [contenteditable]:not([contente
 function commandForCode(code: unknown): Command | null {
   if (typeof code !== 'string') return null;
   if (code === 'KeyG') return { kind: 'hud' };
-  const digit = /^Digit([1-9])$/.exec(code);
+  const digit = /^(?:Digit|Numpad)([1-9])$/.exec(code);
   return digit ? { kind: 'favorite', index: Number(digit[1]) - 1 } : null;
 }
 

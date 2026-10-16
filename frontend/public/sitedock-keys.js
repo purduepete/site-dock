@@ -18,7 +18,7 @@
   window.addEventListener('keydown', event => {
     if (!event.altKey || event.ctrlKey || event.shiftKey || event.metaKey || event.repeat || event.isComposing || event.defaultPrevented) return;
     if (event.getModifierState && event.getModifierState('AltGraph')) return;
-    if (!/^(Digit[1-9]|KeyG)$/.test(event.code)) return;
+    if (!/^((Digit|Numpad)[1-9]|KeyG)$/.test(event.code)) return;
     if (event.target instanceof Element && event.target.closest(editable)) return;
     event.preventDefault();
     window.parent.postMessage({ type: 'sitedock:key', code: event.code }, origin);
