@@ -10,11 +10,11 @@ The font is bundled from `@fontsource-variable/roboto-flex` with its open-source
 
 ## This installation
 
-- Remote: `https://jimbrownlaptop.tail8ad282.ts.net/`
-- Local: `http://localhost:8790`
-- Production output: `data\server.log`
-- Running server PID: recorded in `data\server.lock`
-- Owner setup: still required. A separate PowerShell setup window was opened; there is no default credential.
+- Production: `https://jimbrownhome.tail8ad282.ts.net/` on jimbrownhome, started at logon by the `SiteDock` scheduled task.
+- Previous host: `https://jimbrownlaptop.tail8ad282.ts.net/`, retired after the move.
+- Local: `http://127.0.0.1:8790` on the host.
+- Logs: `data\server.log` and `data\server.err.log`. The running PID is in `data\server.lock`.
+- Owner setup: `npm run owner -- setup`, in a terminal outside VS Code. There is no default credential.
 
 Validation includes server and frontend tests, Microsoft Edge integration tests, TypeScript checks, production build, development UI/API proxy, and Tailscale HTTPS health. Browser checks rendered Ferry Tracker, SmartDevices, and FitTrack's token-entry screen, and opened ESPN in a separate tab. The UI checks cover custom dropdown placement, groups across browsers and sidebar sizes, modal confirmation and focus restoration, flat action colors, and the 44px desktop toolbar. Source-app authenticated sessions and a second device still require your checks.
 
@@ -23,6 +23,37 @@ Validation includes server and frontend tests, Microsoft Edge integration tests,
 - Node.js 22.12 or later.
 - Windows for the documented hosting commands.
 - Tailscale on the host and client devices for remote access.
+
+## Install as a service (Windows)
+
+`scripts\install.ps1` sets up a machine in one step. Run it from a normal, non-elevated `pwsh` window as the account that owns the checkout:
+
+```powershell
+git clone https://github.com/purduepete/sitedock C:\Files\Dev\main\sitedock
+Set-Location C:\Files\Dev\main\sitedock
+pwsh -NoProfile -File scripts\install.ps1
+```
+
+It checks Node and Tailscale, then refuses to continue if Tailscale HTTPS 443 already routes to another app. Use `-HttpsPort 9443` in that case. It imports `sitedock-favorites.json` and `sitedock-owner.json` from Downloads (sent with `tailscale file cp`) without overwriting existing data, and writes `.env` with this machine's Tailscale origin. It then runs `npm ci` and the build, and registers a `SiteDock` logon task. The task runs `scripts\start-hidden.ps1`, which starts node with no console window and clears a `server.lock` left by a reboot or crash. The installer starts the task, waits for `/api/health`, and adds the Tailscale HTTPS route. Re-running it is safe.
+
+| Action | Command |
+|---|---|
+| Update | `npm run update` (pull fast-forward, build, restart; refuses local changes) |
+| Stop | `pwsh -File scripts\stop.ps1` |
+| Start | `Start-ScheduledTask -TaskName SiteDock` |
+| Status | `Invoke-RestMethod http://127.0.0.1:8790/api/health` |
+
+Nothing restarts SiteDock after a crash. Start the task again and read `data\server.err.log`.
+
+Sending data from the old host:
+
+```powershell
+Copy-Item data\favorites.json $env:TEMP\sitedock-favorites.json
+Copy-Item data\owner.json $env:TEMP\sitedock-owner.json
+tailscale file cp $env:TEMP\sitedock-favorites.json $env:TEMP\sitedock-owner.json jimbrownhome:
+```
+
+Web Options only allows framing from listed SiteDock origins (`backend/src/app.ts` in that repo). Update that list when SiteDock changes host.
 
 ## Install and configure
 
@@ -58,7 +89,7 @@ npm run build
 npm start
 ```
 
-Open `http://localhost:8790`. The server listens on loopback, rather than a LAN address. Keep this terminal open while using the app; Ctrl+C stops it. A separately launched background instance can keep running after the terminal closes, but this version does not configure automatic startup or restart.
+Open `http://localhost:8790`. The server listens on loopback, rather than a LAN address. Keep this terminal open while using the app; Ctrl+C stops it. A separately launched background instance can keep running after the terminal closes. For automatic startup at logon, use `scripts\install.ps1` (see above).
 
 The server can show the login screen before an account exists, but signing in requires completing local setup. There is no default password or remotely accessible account-creation endpoint.
 

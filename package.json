@@ -18,7 +18,8 @@
     "test": "npm run test:server && npm run test:frontend",
     "test:e2e": "playwright test",
     "owner": "node --env-file-if-exists=.env --import tsx server/owner.ts",
-    "start": "node --env-file-if-exists=.env dist/server/main.js"
+    "start": "node --env-file-if-exists=.env dist/server/main.js",
+    "update": "pwsh -NoProfile -File scripts/update.ps1"
   },
   "dependencies": {
     "@fontsource-variable/roboto-flex": "^5.2.0",

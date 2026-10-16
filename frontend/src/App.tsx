@@ -8,7 +8,7 @@ import { SiteIcon } from './SiteIcon';
 import { CreateGroupDialog } from './CreateGroupDialog';
 
 const localOrigins = ['localhost', '127.0.0.1', '[::1]'].flatMap(host => [8790, 5173].map(port => `http://${host}:${port}`));
-const ownOrigins = [...localOrigins, location.origin, 'https://jimbrownlaptop.tail8ad282.ts.net', ...(import.meta.env.VITE_SITE_ORIGINS ?? '').split(',').map((value: string) => value.trim()).filter(Boolean)];
+const ownOrigins = [...localOrigins, location.origin, ...(import.meta.env.VITE_SITE_ORIGINS ?? '').split(',').map((value: string) => value.trim()).filter(Boolean)];
 const message = (error: unknown) => error instanceof Error ? error.message : 'The request failed. Please try again.';
 type Frame = { id: string; url: string; version: number };
 
