@@ -55,6 +55,22 @@ export function validateFavorites(value: unknown, forbiddenOrigins: readonly str
   });
 }
 
+export const GROUP_LIMIT = 10;
+
+function groupCounts(favorites: readonly Favorite[]): Map<string, number> {
+  const counts = new Map<string, number>();
+  for (const favorite of favorites) for (const group of favorite.groups ?? []) counts.set(group, (counts.get(group) ?? 0) + 1);
+  return counts;
+}
+
+// Groups saved above the limit before it existed keep their sites but cannot grow.
+export function validateGroupCap(next: readonly Favorite[], current: readonly Favorite[]): void {
+  const before = groupCounts(current);
+  for (const [group, count] of groupCounts(next)) {
+    if (count > GROUP_LIMIT && count > (before.get(group) ?? 0)) throw new ValidationError(`${group} can hold at most ${GROUP_LIMIT} sites.`);
+  }
+}
+
 export function validateReorder(current: readonly Favorite[], ids: unknown): string[] {
   if (!Array.isArray(ids) || ids.length !== current.length || new Set(ids).size !== ids.length ||
       ids.some(id => typeof id !== 'string' || !current.some(f => f.id === id))) {
@@ -140,7 +156,8 @@ export class Storage {
       if (baseRevision !== current.revision) throw new ConflictError(current);
       const groups = groupNames === undefined ? current.groups : validateGroups(groupNames);
       if (validated.some(favorite => favorite.groups?.some(group => !groups.includes(group)))) throw new ValidationError('Choose existing groups for every favorite.');
-      if (operation !== undefined && operation !== 'reorder') throw new ValidationError('Invalid favorites operation.');
+            validateGroupCap(validated, current.favorites);
+            if (operation !== undefined && operation !== 'reorder') throw new ValidationError('Invalid favorites operation.');
       if (operation === 'reorder') {
         validateReorder(current.favorites, validated.map(f => f.id));
         if (validated.some(f => {

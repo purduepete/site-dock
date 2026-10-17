@@ -39,6 +39,21 @@ test('retains the supplied embedded apps and supports editing and themes', async
   await expect(page.getByRole('button', { name: 'Expand favorites', exact: true })).toBeVisible();
   await expect(page.getByRole('button', { name: 'Expand favorites', exact: true })).toHaveText('S');
   expect(await firstFrame.evaluate((element, original) => element === original, frameHandle)).toBe(true);
+  const pills = sidebar.locator('.shortcut-pill');
+  await expect(pills.first()).toBeVisible();
+  await expect(pills.first()).toHaveText('1');
+  const secondIcon = await sidebar.locator('.site-icon img, .site-icon .site-monogram').nth(1).boundingBox();
+  const secondPill = await pills.nth(1).boundingBox();
+  expect(secondIcon && secondPill).toBeTruthy();
+  // The badge overlaps the icon's bottom-right corner.
+  expect(secondPill!.x).toBeGreaterThan(secondIcon!.x + secondIcon!.width / 2);
+  expect(secondPill!.y).toBeGreaterThan(secondIcon!.y + secondIcon!.height / 2);
+  expect(secondPill!.x).toBeLessThan(secondIcon!.x + secondIcon!.width);
+  expect(secondPill!.y).toBeLessThan(secondIcon!.y + secondIcon!.height);
+  // Clicking the badge itself still selects the site underneath it.
+  await page.mouse.click(secondPill!.x + secondPill!.width / 2, secondPill!.y + secondPill!.height / 2);
+  await expect(page.getByRole('heading', { name: 'SmartDevices', exact: true })).toBeVisible();
+  await page.getByRole('button', { name: 'Ferry Tracker', exact: true }).click();
   await page.getByRole('button', { name: 'SmartDevices', exact: true }).click();
   await expect(page.getByRole('heading', { name: 'SmartDevices', exact: true })).toBeVisible();
   await expect(sidebar).toHaveCSS('width', '50px');
@@ -48,6 +63,7 @@ test('retains the supplied embedded apps and supports editing and themes', async
   await page.getByRole('button', { name: 'Expand favorites', exact: true }).click();
   await expect(sidebar).toBeVisible();
   await expect(sidebar).toHaveCSS('width', '280px');
+  await expect(sidebar.locator('.shortcut-pill').first()).toBeHidden();
   const response = await page.request.get('/api/favorites');
   const store = await response.json() as {
     revision: number;

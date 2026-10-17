@@ -1,4 +1,4 @@
-// SiteDock key forwarder. Include this in an app you embed in SiteDock so Alt+1..9 and Alt+G
+// SiteDock key forwarder. Include this in an app you embed in SiteDock so Alt+0..9 and Alt+G
 // work while the embedded app has focus:
 //   <script src="https://<your-sitedock-host>/sitedock-keys.js"><\/script>
 // When inlined or bundled, set the SiteDock origin explicitly:
@@ -18,7 +18,7 @@
   window.addEventListener('keydown', event => {
     if (!event.altKey || event.ctrlKey || event.shiftKey || event.metaKey || event.repeat || event.isComposing || event.defaultPrevented) return;
     if (event.getModifierState && event.getModifierState('AltGraph')) return;
-    if (!/^((Digit|Numpad)[1-9]|KeyG)$/.test(event.code)) return;
+    if (!/^((Digit|Numpad)[0-9]|KeyG)$/.test(event.code)) return;
     if (event.target instanceof Element && event.target.closest(editable)) return;
     event.preventDefault();
     window.parent.postMessage({ type: 'sitedock:key', code: event.code }, origin);

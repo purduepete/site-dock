@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState, type CSSProperties, type FormEvent } from 'react';
-import { api, ApiError, clampWidth, isExternal, moveFavorite, readPreference, savePreference, validateUrl, type Favorite, type Session, type Store, type Theme } from './model';
+import { api, ApiError, clampWidth, GROUP_LIMIT, groupCapViolation, isExternal, moveFavorite, readPreference, savePreference, shortcutKey, validateUrl, type Favorite, type Session, type Store, type Theme } from './model';
 import { Icon } from './Icon';
 import { useTheme } from './useTheme';
 import { Dropdown } from './Dropdown';
@@ -18,8 +18,8 @@ const editableTarget = 'input, textarea, select, [contenteditable]:not([contente
 function commandForCode(code: unknown): Command | null {
   if (typeof code !== 'string') return null;
   if (code === 'KeyG') return { kind: 'hud' };
-  const digit = /^(?:Digit|Numpad)([1-9])$/.exec(code);
-  return digit ? { kind: 'favorite', index: Number(digit[1]) - 1 } : null;
+  const digit = /^(?:Digit|Numpad)([0-9])$/.exec(code);
+  return digit ? { kind: 'favorite', index: digit[1] === '0' ? 9 : Number(digit[1]) - 1 } : null;
 }
 
 function keyCommand(event: KeyboardEvent): Command | null {
@@ -40,18 +40,23 @@ function Conflict({ current, accept, discard }: { current: Store; accept: () => 
   </section>;
 }
 
-function FavoriteForm({ favorite, groups, busy, blocked, allowedOrigins, onSave, onClose }: { favorite: Favorite; groups: string[]; busy: boolean; blocked: boolean; allowedOrigins: string[]; onSave: (favorite: Favorite) => Promise<void>; onClose: () => void }) {
+function FavoriteForm({ favorite, groups, draft, committed, busy, blocked, allowedOrigins, onSave, onClose }: { favorite: Favorite; groups: string[]; draft: Favorite[]; committed: Favorite[]; busy: boolean; blocked: boolean; allowedOrigins: string[]; onSave: (favorite: Favorite) => Promise<void>; onClose: () => void }) {
   const [name, setName] = useState(favorite.name);
   const [url, setUrl] = useState(favorite.url);
   const [mode, setMode] = useState(favorite.mode);
   const [selectedGroups, setSelectedGroups] = useState(favorite.groups ?? []);
   const [error, setError] = useState('');
+  const savedGroups = committed.find(item => item.id === favorite.id)?.groups ?? [];
+  const isFull = (group: string) => !savedGroups.includes(group) &&
+    draft.filter(item => item.id !== favorite.id && item.groups?.includes(group)).length >= GROUP_LIMIT;
+  const overfilled = selectedGroups.filter(isFull);
   async function submit(event: FormEvent) {
     event.preventDefault();
     setError('');
     try {
       if (!name.trim() || name.trim().length > 100) throw new Error('Use a name between 1 and 100 characters.');
       if (selectedGroups.some(group => !groups.includes(group))) throw new Error('A selected group is no longer available. Clear it before saving.');
+      if (overfilled.length) throw new Error(`${overfilled[0]} already has ${GROUP_LIMIT} sites. Clear it or remove a site from it first.`);
       await onSave({ id: favorite.id, name: name.trim(), url: validateUrl(url, allowedOrigins), mode, ...(selectedGroups.length ? { groups: selectedGroups } : {}) });
     } catch (cause) { setError(message(cause)); }
   }
@@ -61,12 +66,17 @@ function FavoriteForm({ favorite, groups, busy, blocked, allowedOrigins, onSave,
       <label>Name<input autoFocus maxLength={100} value={name} onChange={event => setName(event.target.value)} required /></label>
       <label>Website address<input type="url" maxLength={2048} placeholder="https://example.com/" value={url} onChange={event => setUrl(event.target.value)} required /></label>
       <fieldset className="favorite-groups" disabled={busy}><legend>Groups</legend>
-        <p className="muted">Select every group this site belongs to. Sites with no groups appear in All sites.</p>
-        {[...groups, ...selectedGroups.filter(group => !groups.includes(group))].map(group => <label key={group}>
-          <input type="checkbox" checked={selectedGroups.includes(group)} onChange={event => setSelectedGroups(previous =>
-            event.target.checked ? [...previous, group] : previous.filter(value => value !== group))} />
-          <span>{group}{!groups.includes(group) && ' (no longer available)'}</span>
-        </label>)}
+        <p className="muted">Select every group this site belongs to. Sites with no groups appear in All sites. Each group holds up to {GROUP_LIMIT} sites.</p>
+        {[...groups, ...selectedGroups.filter(group => !groups.includes(group))].map(group => {
+          const checked = selectedGroups.includes(group);
+          const full = isFull(group);
+          return <label key={group}>
+            <input type="checkbox" checked={checked} disabled={full && !checked} onChange={event => setSelectedGroups(previous =>
+              event.target.checked ? [...previous, group] : previous.filter(value => value !== group))} />
+            <span>{group}{!groups.includes(group) && ' (no longer available)'}{full && !checked && ' (full)'}</span>
+          </label>;
+        })}
+        {overfilled.length > 0 && <p className="error">{overfilled.join(', ')} already {overfilled.length === 1 ? 'has' : 'have'} {GROUP_LIMIT} sites. Clear {overfilled.length === 1 ? 'it' : 'them'} to save.</p>}
         {!groups.length && !selectedGroups.length && <p className="muted">Create groups from the sidebar dropdown first.</p>}
       </fieldset>
       <div className="dropdown-field"><span>Open preference</span><Dropdown label="Open preference" value={mode} onChange={setMode} options={[{ value: 'embed', label: 'Inside SiteDock' }, { value: 'external', label: 'Separate tab' }]} /></div>
@@ -257,6 +267,8 @@ export function App() {
 
   async function save(next: Favorite[], operation?: 'reorder', nextGroups = groups): Promise<boolean> {
     if (!store || conflict || saving.current || !auth.current) return false;
+    const full = groupCapViolation(next, store.favorites);
+    if (full) { setError(`${full} can hold at most ${GROUP_LIMIT} sites. Remove sites from it before saving.`); return false; }
     saving.current = true;
     setDraft(next); setGroups(nextGroups); setPending(true); setBusy(true); setError('');
     const epoch = generation.current;
@@ -347,7 +359,7 @@ export function App() {
         const next = !minimized;
         setMinimized(next); setResizing(false); savePreference('sidebar-minimized', String(next));
       }}>S</button>SiteDock</span><button className="mobile-only" aria-label="Close favorites" onClick={() => setSidebar(false)}><Icon name="close" /></button></div>
-      <div className="section-heading list-heading"><span className="eyebrow">FAVORITES <span className="count">{visibleFavorites.length}</span></span><button aria-label="Add favorite" disabled={!store || busy} onClick={() => { setEditor({ id: crypto.randomUUID(), name: '', url: '', mode: 'embed', ...(groupFilter.startsWith('group:') ? { groups: [groupFilter.slice(6)] } : {}) }); setSidebar(false); }}><Icon name="plus" /></button></div>
+      <div className="section-heading list-heading"><span className="eyebrow">FAVORITES <span className="count">{visibleFavorites.length}</span></span><button aria-label="Add favorite" disabled={!store || busy} onClick={() => { setEditor({ id: crypto.randomUUID(), name: '', url: '', mode: 'embed', ...(groupFilter.startsWith('group:') && visibleFavorites.length < GROUP_LIMIT ? { groups: [groupFilter.slice(6)] } : {}) }); setSidebar(false); }}><Icon name="plus" /></button></div>
       <div className="group-filter" title="Switch group (Alt+G)"><Dropdown label="Group" value={groupFilter} options={[
         { value: 'all', label: 'All sites' },
         ...groups.map(name => ({ value: `group:${name}`, label: name })),
@@ -358,11 +370,12 @@ export function App() {
         setCreatingGroup(true);
       }} /></div>
       <nav className="favorites-list" aria-label="Favorite websites">
-        {visibleFavorites.map((favorite, index) => <div key={favorite.id} className={`favorite ${selected === favorite.id ? 'selected' : ''}`}>
+        {visibleFavorites.map((favorite, index) => { const key = shortcutKey(index); return <div key={favorite.id} className={`favorite ${selected === favorite.id ? 'selected' : ''}`}>
           <div className="favorite-main">
             <SiteIcon key={favorite.url} url={favorite.url} name={favorite.name} />
-            {isExternal(favorite) ? <a ref={element => { if (element) favoriteControls.current.set(favorite.id, element); else favoriteControls.current.delete(favorite.id); }} className="favorite-select" aria-label={`Open ${favorite.name} in a separate tab`} aria-keyshortcuts={index < 9 ? `Alt+${index + 1}` : undefined} title={index < 9 ? `${favorite.name} (Alt+${index + 1})` : favorite.name} href={favorite.url} target="_blank" rel="noopener noreferrer" aria-current={selected === favorite.id ? 'page' : undefined} onClick={() => choose(favorite.id)}><span>{favorite.name}</span><small>Separate tab{index < 9 && <kbd>Alt+{index + 1}</kbd>}</small></a> :
-              <button ref={element => { if (element) favoriteControls.current.set(favorite.id, element); else favoriteControls.current.delete(favorite.id); }} className="favorite-select" aria-label={favorite.name} aria-keyshortcuts={index < 9 ? `Alt+${index + 1}` : undefined} title={index < 9 ? `${favorite.name} (Alt+${index + 1})` : favorite.name} aria-current={selected === favorite.id ? 'page' : undefined} onClick={() => choose(favorite.id)}><span>{favorite.name}</span><small>{new URL(favorite.url).hostname}{index < 9 && <kbd>Alt+{index + 1}</kbd>}</small></button>}
+            {key && <span className="shortcut-pill" aria-hidden="true">{key}</span>}
+            {isExternal(favorite) ? <a ref={element => { if (element) favoriteControls.current.set(favorite.id, element); else favoriteControls.current.delete(favorite.id); }} className="favorite-select" aria-label={`Open ${favorite.name} in a separate tab`} aria-keyshortcuts={key ? `Alt+${key}` : undefined} title={key ? `${favorite.name} (Alt+${key})` : favorite.name} href={favorite.url} target="_blank" rel="noopener noreferrer" aria-current={selected === favorite.id ? 'page' : undefined} onClick={() => choose(favorite.id)}><span>{favorite.name}</span><small>Separate tab{key && <kbd>Alt+{key}</kbd>}</small></a> :
+              <button ref={element => { if (element) favoriteControls.current.set(favorite.id, element); else favoriteControls.current.delete(favorite.id); }} className="favorite-select" aria-label={favorite.name} aria-keyshortcuts={key ? `Alt+${key}` : undefined} title={key ? `${favorite.name} (Alt+${key})` : favorite.name} aria-current={selected === favorite.id ? 'page' : undefined} onClick={() => choose(favorite.id)}><span>{favorite.name}</span><small>{new URL(favorite.url).hostname}{key && <kbd>Alt+{key}</kbd>}</small></button>}
             {isExternal(favorite) && <Icon name="external" />}
           </div>
           <div className="favorite-actions">
@@ -371,7 +384,7 @@ export function App() {
             <button aria-label={`Edit ${favorite.name}`} title="Edit favorite" disabled={busy} onClick={() => { setEditor(favorite); setSidebar(false); }}><Icon name="edit" /></button>
             <button aria-label={`Delete ${favorite.name}`} title="Delete favorite" disabled={busy || !!conflict} onClick={() => setDeleteTarget(favorite)}><Icon name="trash" /></button>
           </div>
-        </div>)}
+        </div>; })}
         {store && !visibleFavorites.length && <p className="sidebar-empty">{groupFilter === 'all' ? 'Add your first favorite to get started.' : 'No sites in this group. Add a favorite or edit a site in All sites to assign it here.'}</p>}
       </nav>
       <footer className="sidebar-footer">{themeControl}<div className="account"><span><small>Signed in as</small>{session.username ?? 'Owner'}</span><button aria-label="Sign out" title="Sign out of SiteDock" onClick={() => void logout()}><Icon name="logout" /></button></div></footer>
@@ -391,8 +404,10 @@ export function App() {
         {conflictPanel}
         {pending && !conflict && <div className="pending"><span>You have pending changes.</span><button disabled={busy || !!editor} onClick={() => void save(draft)}>{busy ? 'Saving…' : 'Save pending list'}</button><button disabled={busy} onClick={() => { if (store) { setDraft(store.favorites); setGroups(store.groups ?? []); setPending(false); setError(''); } }}>Discard pending list</button></div>}
         {!store && <p role="status">Loading favorites… <button onClick={() => setLoadAttempt(value => value + 1)}>Retry</button></p>}
-        {editor && <FavoriteForm key={editor.id} favorite={editor} groups={groups} busy={busy} blocked={!!conflict} allowedOrigins={[...ownOrigins, ...(session.allowedOrigins ?? [])]} onClose={() => setEditor(null)} onSave={async favorite => {
+        {editor && <FavoriteForm key={editor.id} favorite={editor} groups={groups} draft={draft} committed={store?.favorites ?? []} busy={busy} blocked={!!conflict} allowedOrigins={[...ownOrigins, ...(session.allowedOrigins ?? [])]} onClose={() => setEditor(null)} onSave={async favorite => {
           const next = draft.some(item => item.id === favorite.id) ? draft.map(item => item.id === favorite.id ? favorite : item) : [...draft, favorite];
+          const full = groupCapViolation(next, store?.favorites ?? []);
+          if (full) throw new Error(`${full} already has ${GROUP_LIMIT} sites. Remove a site from it first.`);
           if (await save(next)) {
             if (groupFilter !== 'all' && !favorite.groups?.includes(groupFilter.slice(6))) {
               filterGroup(favorite.groups?.length ? `group:${favorite.groups[0]}` : 'all');

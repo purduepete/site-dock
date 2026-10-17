@@ -46,6 +46,7 @@ p { font-size: 14px; line-height: 1.6; }
 .favorite:hover { background: var(--raised); }
 .favorite-main { display: flex; align-items: center; gap: 7px; padding: 0 10px 0 12px; }
 .site-icon { display: none; }
+.shortcut-pill { display: none; pointer-events: none; }
 .site-monogram { display: grid; place-items: center; width: 28px; height: 28px; border-radius: 50%; background: var(--primary); color: var(--on-primary); font-size: 11px; font-weight: 650; }
 .favorite-select { display: block; flex: 1; min-width: 0; border: 0; padding: 12px 0 8px; text-align: left; text-decoration: none; color: var(--text); background: none; }
 .favorite-select:hover { background: none; border: 0; }
@@ -111,6 +112,8 @@ p { font-size: 14px; line-height: 1.6; }
   .sidebar-minimized .favorite { margin-bottom: 4px; }
   .sidebar-minimized .favorite-main { padding: 0; position: relative; }
   .sidebar-minimized .site-icon { position: absolute; inset: 0; display: grid; place-items: center; pointer-events: none; color: var(--text); }
+  /* Shortcut number overlapping the icon's bottom-right corner. Clicks pass through to the site button. */
+  .sidebar-minimized .shortcut-pill { position: absolute; left: calc(50% + 4px); top: calc(50% + 3px); display: grid; place-items: center; min-width: 13px; height: 13px; padding: 0 3px; border-radius: 7px; border: 1px solid var(--panel); background: var(--accent); color: var(--panel); font-size: 9px; font-weight: 700; line-height: 1; pointer-events: none; }
   .site-icon img, .site-icon svg { width: 20px; height: 20px; object-fit: contain; }
   /* Dark favicons (e.g. NYT) disappear on the dark rail, so image icons get a light tile. */
   :root:not([data-theme="light"]) .site-icon img { box-sizing: content-box; padding: 1px; background: #e8edf3; }

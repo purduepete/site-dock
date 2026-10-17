@@ -33,6 +33,26 @@ export function moveFavorite(favorites: Favorite[], id: string, target: number):
   return next;
 }
 
+export const GROUP_LIMIT = 10;
+
+/** Alt+1..9 for the first 9 sites and Alt+0 for the 10th. */
+export function shortcutKey(index: number): string | null {
+  return index >= 0 && index < 9 ? String(index + 1) : index === 9 ? '0' : null;
+}
+
+export function groupCounts(favorites: readonly Favorite[]): Map<string, number> {
+  const counts = new Map<string, number>();
+  for (const favorite of favorites) for (const group of favorite.groups ?? []) counts.set(group, (counts.get(group) ?? 0) + 1);
+  return counts;
+}
+
+// Groups saved above the limit before it existed keep their sites but cannot grow.
+export function groupCapViolation(next: readonly Favorite[], committed: readonly Favorite[]): string | null {
+  const before = groupCounts(committed);
+  for (const [group, count] of groupCounts(next)) if (count > GROUP_LIMIT && count > (before.get(group) ?? 0)) return group;
+  return null;
+}
+
 export function clampWidth(width: number): number {
   return Math.max(220, Math.min(480, Number.isFinite(width) ? width : 280));
 }

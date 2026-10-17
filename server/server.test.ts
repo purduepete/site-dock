@@ -277,3 +277,31 @@ test('HTTP authentication, persistence, reset, origin/proxy boundaries and stati
     await new Promise<void>((resolve, reject) => app.close(error => error ? reject(error) : resolve()));
   }
 }));
+
+test('named groups hold at most 10 sites, with older larger groups kept but unable to grow', async () => fixture(async directory => {
+  const site = (n: number, groups?: string[]) => ({ id: `s${n}`, name: `Site ${n}`, url: `https://s${n}.example.com/`, mode: 'embed' as const, ...(groups ? { groups } : {}) });
+  const range = (from: number, to: number, groups?: string[]) => Array.from({ length: to - from + 1 }, (_, i) => site(from + i, groups));
+  const storage = new Storage(directory);
+  await writeFile(join(directory, 'favorites.json'), JSON.stringify({ revision: 1, groups: ['Big', 'A', 'B'], favorites: [...range(1, 12, ['Big']), ...range(13, 25)] }));
+  // All sites has no limit, and a group of exactly 10 is allowed.
+  const ten = await storage.update(1, [...range(1, 12, ['Big']), ...range(13, 22, ['A']), ...range(23, 25)], undefined, ['Big', 'A', 'B']);
+  assert.equal(ten.favorites.length, 25);
+  await assert.rejects(storage.update(2, [...range(1, 12, ['Big']), ...range(13, 23, ['A']), ...range(24, 25)]), /A can hold at most 10 sites/);
+  // Each group has its own allowance; B can take 10 more even while A is full.
+  const both = await storage.update(2, [...range(1, 12, ['Big']), ...range(13, 22, ['A']), ...range(23, 25, ['B'])]);
+  assert.equal(both.revision, 3);
+  // The grandfathered group of 12 can be reordered or edited without growing.
+  const reordered = [...range(1, 12, ['Big']).reverse(), ...range(13, 22, ['A']), ...range(23, 25, ['B'])];
+  assert.equal((await storage.update(3, reordered, 'reorder')).revision, 4);
+  const edited = reordered.map(item => item.id === 's5' ? { ...item, name: 'Renamed' } : item);
+  assert.equal((await storage.update(4, edited)).revision, 5);
+  // It can shrink to 11, then cannot grow back to 12.
+  const shrunk = edited.map(item => item.id === 's1' ? site(1) : item);
+  assert.equal((await storage.update(5, shrunk)).revision, 6);
+  await assert.rejects(storage.update(6, edited), /Big can hold at most 10 sites/);
+  // A new group name inherits no allowance from another group.
+  const renamed = shrunk.map(item => item.groups?.includes('Big') ? { ...item, groups: ['Huge'] } : item);
+  await assert.rejects(storage.update(6, renamed, undefined, ['Big', 'A', 'B', 'Huge']), /Huge can hold at most 10 sites/);
+  // Reading the grandfathered file stays valid.
+  assert.equal((await new Storage(directory).read()).favorites.filter(item => item.groups?.includes('Big')).length, 11);
+}));

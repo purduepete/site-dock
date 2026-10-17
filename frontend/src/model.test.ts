@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { api, ApiError, clampWidth, isExternal, moveFavorite, validateUrl, type Favorite } from './model';
+import { api, ApiError, clampWidth, GROUP_LIMIT, groupCapViolation, isExternal, moveFavorite, shortcutKey, validateUrl, type Favorite } from './model';
 
 const item: Favorite = { id: 'one', name: 'One', url: 'https://example.com/', mode: 'embed' };
 afterEach(() => vi.unstubAllGlobals());
@@ -49,5 +49,24 @@ describe('same-origin JSON requests', () => {
   it('reports a non-JSON failure as an API error', async () => {
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response('Oops', { status: 500 })));
     await expect(api('session')).rejects.toBeInstanceOf(ApiError);
+  });
+});
+
+describe('shortcut keys and the group limit', () => {
+  const site = (id: string, groups?: string[]): Favorite => ({ ...item, id, ...(groups ? { groups } : {}) });
+  const many = (count: number, groups?: string[]) => Array.from({ length: count }, (_, i) => site(`s${i}`, groups));
+  it('maps the first 10 positions to 1-9 then 0', () => {
+    expect(Array.from({ length: 11 }, (_, i) => shortcutKey(i))).toEqual(['1', '2', '3', '4', '5', '6', '7', '8', '9', '0', null]);
+    expect(shortcutKey(-1)).toBeNull();
+  });
+  it('allows 10 per group, keeps older larger groups, and blocks growth', () => {
+    expect(GROUP_LIMIT).toBe(10);
+    expect(groupCapViolation(many(10, ['G']), [])).toBeNull();
+    expect(groupCapViolation(many(11, ['G']), many(10, ['G']))).toBe('G');
+    expect(groupCapViolation(many(12, ['G']), many(12, ['G']))).toBeNull();
+    expect(groupCapViolation(many(11, ['G']), many(12, ['G']))).toBeNull();
+    expect(groupCapViolation(many(13, ['G']), many(12, ['G']))).toBe('G');
+    expect(groupCapViolation(many(30), [])).toBeNull();
+    expect(groupCapViolation(many(11, ['New']), many(12, ['Old']))).toBe('New');
   });
 });

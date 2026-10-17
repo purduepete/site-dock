@@ -17,12 +17,17 @@ let conflict: boolean;
 let requests: Array<{ path: string; body?: Record<string, unknown> }>;
 let failSave: boolean;
 let groupNames: string[];
+let conflictStore: { revision: number; favorites: Favorite[]; groups: string[] } | null;
+const sites = (count: number, groups?: string[], start = 1): Favorite[] => Array.from({ length: count }, (_, offset) => {
+  const n = start + offset;
+  return { id: `s${n}`, name: `Site ${n}`, url: `https://s${n}.example.com/`, mode: 'embed', ...(groups ? { groups } : {}) };
+});
 
 beforeEach(() => {
   HTMLDialogElement.prototype.showModal = function () { this.setAttribute('open', ''); };
   HTMLDialogElement.prototype.close = function () { this.removeAttribute('open'); };
   authenticated = true; revision = 1; data = favorites.map(item => ({ ...item })); conflict = false; failSave = false; requests = [];
-  groupNames = [];
+  groupNames = []; conflictStore = null;
   const preferences = new Map<string, string>();
   vi.stubGlobal('localStorage', {
     getItem: (key: string) => preferences.get(key) ?? null,
@@ -41,7 +46,7 @@ beforeEach(() => {
     if (input === '/api/logout') { authenticated = false; }
     if (input === '/api/favorites') {
       if (!authenticated) { status = 401; value = { error: 'Session expired' }; }
-      else if (body && conflict) { status = 409; value = { revision: 7, favorites: [{ ...favorites[0], name: 'Changed elsewhere' }], groups: ['News'], error: 'Conflict' }; }
+      else if (body && conflict) { status = 409; value = conflictStore ? { ...conflictStore, error: 'Conflict' } : { revision: 7, favorites: [{ ...favorites[0], name: 'Changed elsewhere' }], groups: ['News'], error: 'Conflict' }; }
       else if (body && failSave) { status = 500; value = { error: 'Disk unavailable' }; }
       else { if (body) { data = body.favorites as Favorite[]; groupNames = body.groups as string[]; revision++; } value = { revision, favorites: data, groups: groupNames }; }
     }
@@ -495,5 +500,109 @@ describe('favorite edits and reconciliation', () => {
     await userEvent.click(screen.getByRole('option', { name: 'Light' }));
     expect(document.documentElement.dataset.theme).toBe('light');
     expect(localStorage.getItem('sitedock.theme')).toBe('light');
+  });
+});
+
+describe('ten-site shortcuts and group limit', () => {
+  const pills = () => [...document.querySelectorAll('.shortcut-pill')].map(pill => pill.textContent);
+  async function readyWith(title: string) { render(<App />); await screen.findByTitle(title); }
+  const current = (name: string) => screen.getByRole('button', { name }).getAttribute('aria-current');
+
+  it('numbers the first 10 sites 1-9 then 0 and opens the 10th with Alt+0 in All sites', async () => {
+    data = sites(12);
+    await readyWith('Site 1');
+    expect(pills()).toEqual(['1', '2', '3', '4', '5', '6', '7', '8', '9', '0']);
+    expect(screen.getByRole('button', { name: 'Site 10' }).getAttribute('aria-keyshortcuts')).toBe('Alt+0');
+    expect(screen.getByRole('button', { name: 'Site 10' }).getAttribute('title')).toBe('Site 10 (Alt+0)');
+    expect(screen.getByRole('button', { name: 'Site 11' }).getAttribute('aria-keyshortcuts')).toBeNull();
+    expect(fireEvent.keyDown(window, { code: 'Digit0', altKey: true })).toBe(false);
+    await screen.findByTitle('Site 10');
+    expect(current('Site 10')).toBe('page');
+    fireEvent.keyDown(window, { code: 'Digit1', altKey: true });
+    expect(current('Site 1')).toBe('page');
+    expect(fireEvent.keyDown(window, { key: 'Insert', code: 'Numpad0', altKey: true })).toBe(false);
+    expect(current('Site 10')).toBe('page');
+  });
+
+  it('opens an external 10th site in a group with Alt+0 and follows reordering', async () => {
+    groupNames = ['G'];
+    data = [...sites(9, ['G']), { id: 's10', name: 'Site 10', url: 'https://s10.example.com/', mode: 'external', groups: ['G'] }];
+    localStorage.setItem('sitedock.group', 'group:G');
+    await readyWith('Site 1');
+    const external = screen.getByRole('link', { name: 'Open Site 10 in a separate tab' });
+    expect(external.getAttribute('aria-keyshortcuts')).toBe('Alt+0');
+    const activate = vi.spyOn(external, 'click').mockImplementation(() => {});
+    fireEvent.keyDown(window, { code: 'Digit0', altKey: true });
+    expect(activate).toHaveBeenCalledOnce();
+    await userEvent.click(screen.getByRole('button', { name: 'Move Site 10 up' }));
+    await waitFor(() => expect(data[8].id).toBe('s10'));
+    fireEvent.keyDown(window, { code: 'Digit0', altKey: true });
+    await screen.findByTitle('Site 9');
+    expect(current('Site 9')).toBe('page');
+  });
+
+  it('leaves Alt+0 unconsumed when fewer than 10 sites are visible', async () => {
+    await ready();
+    expect(fireEvent.keyDown(window, { code: 'Digit0', altKey: true })).toBe(true);
+    expect(pills()).toEqual(['1', '2', '3']);
+  });
+
+  it('accepts a forwarded zero from the active frame', async () => {
+    data = sites(10);
+    await readyWith('Site 1');
+    const frame = screen.getByTitle('Site 1') as HTMLIFrameElement;
+    fireEvent(window, new MessageEvent('message', { data: { type: 'sitedock:key', code: 'Digit0' }, origin: 'https://s1.example.com', source: frame.contentWindow }));
+    await screen.findByTitle('Site 10');
+    expect(current('Site 10')).toBe('page');
+  });
+
+  it('does not preselect or allow a full group when adding a favorite', async () => {
+    groupNames = ['G', 'Other'];
+    data = [...sites(10, ['G']), ...sites(1, undefined, 11)];
+    localStorage.setItem('sitedock.group', 'group:G');
+    await readyWith('Site 1');
+    await userEvent.click(screen.getByRole('button', { name: 'Add favorite' }));
+    const full = screen.getByRole('checkbox', { name: 'G (full)' }) as HTMLInputElement;
+    expect(full.checked).toBe(false);
+    expect(full.disabled).toBe(true);
+    expect((screen.getByRole('checkbox', { name: 'Other' }) as HTMLInputElement).disabled).toBe(false);
+  });
+
+  it('lets existing members of a grandfathered group stay or leave', async () => {
+    groupNames = ['G'];
+    data = [...sites(12, ['G']), ...sites(1, undefined, 13)];
+    await readyWith('Site 1');
+    await userEvent.click(screen.getByRole('button', { name: 'Edit Site 2' }));
+    const member = screen.getByRole('checkbox', { name: 'G' }) as HTMLInputElement;
+    expect(member.checked).toBe(true);
+    expect(member.disabled).toBe(false);
+    await userEvent.clear(screen.getByLabelText('Name'));
+    await userEvent.type(screen.getByLabelText('Name'), 'Renamed');
+    await userEvent.click(screen.getByRole('button', { name: 'Save favorite' }));
+    await waitFor(() => expect(data[1].name).toBe('Renamed'));
+    await userEvent.click(screen.getByRole('button', { name: 'Edit Renamed' }));
+    await userEvent.click(screen.getByRole('checkbox', { name: 'G' }));
+    await userEvent.click(screen.getByRole('button', { name: 'Save favorite' }));
+    await waitFor(() => expect(data[1].groups).toBeUndefined());
+    await userEvent.click(screen.getByRole('button', { name: 'Edit Site 13' }));
+    expect((screen.getByRole('checkbox', { name: 'G (full)' }) as HTMLInputElement).disabled).toBe(true);
+  });
+
+  it('blocks saving a kept pending list that grows a group past the latest limit', async () => {
+    groupNames = ['G'];
+    data = sites(11, ['G']);
+    await readyWith('Site 1');
+    conflict = true;
+    conflictStore = { revision: 7, favorites: sites(10, ['G'], 2), groups: ['G'] };
+    await userEvent.click(screen.getByRole('button', { name: 'Edit Site 1' }));
+    await userEvent.type(screen.getByLabelText('Name'), ' edited');
+    await userEvent.click(screen.getByRole('button', { name: 'Save favorite' }));
+    await userEvent.click(await screen.findByRole('button', { name: 'Keep pending list for review' }));
+    await userEvent.click(screen.getAllByRole('button', { name: 'Close editor' })[0]);
+    conflict = false;
+    const puts = requests.filter(request => request.body).length;
+    await userEvent.click(screen.getByRole('button', { name: 'Save pending list' }));
+    await screen.findByText('G can hold at most 10 sites. Remove sites from it before saving.');
+    expect(requests.filter(request => request.body).length).toBe(puts);
   });
 });
