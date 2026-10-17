@@ -606,3 +606,42 @@ describe('ten-site shortcuts and group limit', () => {
     expect(requests.filter(request => request.body).length).toBe(puts);
   });
 });
+
+describe('embedded app token handoff', () => {
+  const ask = (frame: HTMLIFrameElement, data: unknown, origin = 'https://example.com', source: MessageEventSource | null = frame.contentWindow) =>
+    fireEvent(window, new MessageEvent('message', { data, origin, source }));
+  it('saves, returns, and clears a token only for the frame at its saved origin', async () => {
+    await ready();
+    const frame = screen.getByTitle('Example') as HTMLIFrameElement;
+    const reply = vi.spyOn(frame.contentWindow!, 'postMessage').mockImplementation(() => undefined);
+    ask(frame, { type: 'sitedock:token', op: 'save', id: 'a', token: 'secret' });
+    expect(reply).toHaveBeenLastCalledWith({ type: 'sitedock:token', op: 'ok', id: 'a' }, 'https://example.com');
+    expect(localStorage.getItem('sitedock-token:https://example.com')).toBe('secret');
+    ask(frame, { type: 'sitedock:token', op: 'get', id: 'b' });
+    expect(reply).toHaveBeenLastCalledWith({ type: 'sitedock:token', op: 'value', id: 'b', token: 'secret' }, 'https://example.com');
+    ask(frame, { type: 'sitedock:token', op: 'clear', id: 'c' });
+    expect(localStorage.getItem('sitedock-token:https://example.com')).toBeNull();
+  });
+  it('ignores token messages from the wrong origin, a non-frame source, or with bad data', async () => {
+    await ready();
+    const frame = screen.getByTitle('Example') as HTMLIFrameElement;
+    localStorage.setItem('sitedock-token:https://example.com', 'secret');
+    const reply = vi.spyOn(frame.contentWindow!, 'postMessage').mockImplementation(() => undefined);
+    ask(frame, { type: 'sitedock:token', op: 'get', id: 'x' }, 'https://evil.example');
+    ask(frame, { type: 'sitedock:token', op: 'get', id: 'x' }, 'https://example.com', window);
+    ask(frame, { type: 'sitedock:token', op: 'get', id: 'x' }, 'https://example.com', null);
+    for (const data of [null, 'get', { type: 'sitedock:token', op: 'get' }, { type: 'sitedock:token', op: 'dump', id: 'x' },
+      { type: 'sitedock:token', op: 'save', id: 'x', token: '' }, { type: 'sitedock:token', op: 'save', id: 'x', token: 'x'.repeat(4097) },
+      { type: 'sitedock:token', op: 'save', id: 'x', token: 7 }]) ask(frame, data);
+    expect(reply).not.toHaveBeenCalled();
+    expect(localStorage.getItem('sitedock-token:https://example.com')).toBe('secret');
+  });
+  it('lets the owner forget a saved token from the favorite editor', async () => {
+    await ready();
+    localStorage.setItem('sitedock-token:https://example.com', 'secret');
+    await userEvent.click(screen.getByRole('button', { name: 'Edit Example' }));
+    await userEvent.click(screen.getByRole('button', { name: 'Forget saved sign-in' }));
+    expect(localStorage.getItem('sitedock-token:https://example.com')).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Forget saved sign-in' })).toBeNull();
+  });
+});

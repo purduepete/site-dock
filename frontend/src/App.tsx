@@ -7,6 +7,7 @@ import { DeleteFavoriteDialog } from './DeleteFavoriteDialog';
 import { SiteIcon } from './SiteIcon';
 import { CreateGroupDialog } from './CreateGroupDialog';
 import { GroupHud } from './GroupHud';
+import { forgetOrphanedTokens, handleTokenRequest, originOf, parseTokenRequest, readToken, writeToken } from './tokens';
 
 const localOrigins = ['localhost', '127.0.0.1', '[::1]'].flatMap(host => [8790, 5173].map(port => `http://${host}:${port}`));
 const ownOrigins = [...localOrigins, location.origin, ...(import.meta.env.VITE_SITE_ORIGINS ?? '').split(',').map((value: string) => value.trim()).filter(Boolean)];
@@ -50,6 +51,8 @@ function FavoriteForm({ favorite, groups, draft, committed, busy, blocked, allow
   const isFull = (group: string) => !savedGroups.includes(group) &&
     draft.filter(item => item.id !== favorite.id && item.groups?.includes(group)).length >= GROUP_LIMIT;
   const overfilled = selectedGroups.filter(isFull);
+  const tokenOrigin = originOf(favorite.url);
+  const [hasToken, setHasToken] = useState(() => !!tokenOrigin && readToken(tokenOrigin) !== null);
   async function submit(event: FormEvent) {
     event.preventDefault();
     setError('');
@@ -81,6 +84,7 @@ function FavoriteForm({ favorite, groups, draft, committed, busy, blocked, allow
       </fieldset>
       <div className="dropdown-field"><span>Open preference</span><Dropdown label="Open preference" value={mode} onChange={setMode} options={[{ value: 'embed', label: 'Inside SiteDock' }, { value: 'external', label: 'Separate tab' }]} /></div>
       <p className="muted">Some sites block embedding or require a separate tab for sign-in. HTTP sites always open separately when SiteDock uses HTTPS.</p>
+      {hasToken && tokenOrigin && <div className="saved-token"><span className="muted">This browser keeps a sign-in token for {tokenOrigin}.</span><button type="button" disabled={busy} onClick={() => { if (writeToken(tokenOrigin, null)) setHasToken(false); }}>Forget saved sign-in</button></div>}
       {error && <p role="alert" className="error">{error}</p>}
       <div className="button-row"><button type="submit" className="primary" disabled={busy || blocked}>{busy ? 'Saving…' : 'Save favorite'}</button><button type="button" onClick={onClose} disabled={busy}>Close editor</button></div>
     </form>
@@ -148,8 +152,8 @@ export function App() {
     if (forwarded && isExternal(favorite)) focusOpenLink.current = true;
     return true;
   }
-  const latest = useRef({ runCommand, current, hudOpen });
-  latest.current = { runCommand, current, hudOpen };
+  const latest = useRef({ runCommand, current, hudOpen, draft });
+  latest.current = { runCommand, current, hudOpen, draft };
 
   useEffect(() => {
     if (!session?.authenticated) return;
@@ -172,9 +176,24 @@ export function App() {
       if (event.origin !== origin) return;
       latest.current.runCommand(command, true);
     }
+    // Any mounted frame may ask, since apps request their token as soon as they load, even when hidden.
+    function tokenMessage(event: MessageEvent) {
+      const request = parseTokenRequest(event.data);
+      if (!request || !event.source || !auth.current) return;
+      for (const [id, frame] of frameElements.current) {
+        if (!frame.contentWindow || event.source !== frame.contentWindow) continue;
+        const favorite = latest.current.draft.find(item => item.id === id);
+        const origin = favorite && !isExternal(favorite) ? originOf(favorite.url) : null;
+        // A same-origin frame could read SiteDock's storage directly, so it gets no token service.
+        if (!origin || event.origin !== origin || origin === location.origin) return;
+        frame.contentWindow.postMessage(handleTokenRequest(request, origin), origin);
+        return;
+      }
+    }
     window.addEventListener('keydown', shortcut);
     window.addEventListener('message', forwarded);
-    return () => { window.removeEventListener('keydown', shortcut); window.removeEventListener('message', forwarded); };
+    window.addEventListener('message', tokenMessage);
+    return () => { window.removeEventListener('keydown', shortcut); window.removeEventListener('message', forwarded); window.removeEventListener('message', tokenMessage); };
   }, [session?.authenticated]);
 
   useEffect(() => {
@@ -276,6 +295,7 @@ export function App() {
       const result = await api<Store>('favorites', { baseRevision: store.revision, favorites: next, groups: nextGroups, ...(operation ? { operation } : {}) });
       if (epoch !== generation.current) return false;
       setStore(result); setDraft(result.favorites); setGroups(result.groups ?? []); setPending(false); setAnnouncement('Favorites saved.');
+      forgetOrphanedTokens(store.favorites, result.favorites);
       return true;
     } catch (cause) {
       if (epoch !== generation.current) return false;

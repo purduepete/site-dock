@@ -147,6 +147,13 @@ Do not use `tailscale serve reset` if the node has other routes.
   ```
 
   The script only runs when the page is framed. It ignores keys typed in text fields and posts to the exact SiteDock origin it was loaded from (or the `data-sitedock-origin` attribute when you inline it), never to `*`. SiteDock accepts a forwarded key only from the active frame's window and only when the message origin matches that favorite's saved origin. If the app's Content-Security-Policy blocks the script, add the SiteDock origin to its `script-src` or inline the file with `data-sitedock-origin` set. Sites you don't control (news sites, for example) and nested frames inside an embedded app can't forward keys. A forwarded key that selects a separate-tab favorite may have its new tab blocked, because browser user activation does not cross frames; SiteDock then focuses the Open button so Enter opens it.
+- Safari on iPad and iPhone erases a cross-site embedded page's localStorage when Safari or the home-screen app closes, so apps that keep a sign-in token there ask for it again. Apps you control can hand their token to SiteDock and get it back on the next load. Use `sitedock-token.js` (it exposes `SiteDockToken.get()`, `.save(token)`, and `.clear()`, each returning a promise) or bundle an equivalent helper, as FitTrack does:
+
+  ```html
+  <script src="https://<your-sitedock-host>/sitedock-token.js"></script>
+  ```
+
+  SiteDock stores the token in its own localStorage on that device, keyed by the frame's origin. It never sends tokens to the SiteDock server, so each device signs in to each app once. SiteDock answers only frames it mounted for an embedded favorite, only when the message comes from that frame's window with the favorite's saved origin, and only while you're signed in to SiteDock. Replies go to that exact origin. Pages on SiteDock's own origin are refused. Edit a favorite and choose Forget saved sign-in to remove its stored token. When you delete a favorite or move it to another origin from this browser, SiteDock drops the token once no favorite uses that origin. Signing out of SiteDock keeps saved tokens on the device.
 - Theme and display preferences use custom button/listbox dropdowns. Primary actions use flat colors.
 - Deletion requires confirmation in a styled modal; Cancel and Escape leave the favorite unchanged.
 - A compact 44px desktop toolbar gives the embedded page the remaining space. Phone controls retain 44px touch targets.
