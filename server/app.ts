@@ -3,13 +3,13 @@ import { randomBytes } from 'node:crypto';
 import { readFile } from 'node:fs/promises';
 import { resolve, sep, extname } from 'node:path';
 import type { Config } from './config.js';
-import { Storage, readOwner, verifyPassword, ValidationError, ConflictError } from './storage.js';
+import { Storage, readOwner, verifyPassword, ValidationError, ConflictError, type StorageBackend } from './storage.js';
 
 const WEEK = 7 * 24 * 60 * 60 * 1000;
 const MAX_BODY = 1024 * 1024;
 const crossOriginScripts = new Set(['/sitedock-keys.js', '/sitedock-token.js']);
 interface Session { username: string; version: string; expires: number }
-interface Options { now?: () => number; storage?: Storage }
+interface Options { now?: () => number; storage?: StorageBackend }
 class SetupRequiredError extends Error {}
 
 function header(req: IncomingMessage, name: string): string | undefined {
@@ -27,10 +27,12 @@ export function requestOrigin(req: IncomingMessage, config: Config): { origin: s
   const forwardedHost = header(req, 'x-forwarded-host');
   const forwardedPort = header(req, 'x-forwarded-port');
   if (header(req, 'forwarded') !== undefined) throw new ValidationError('Unexpected forwarded metadata.');
-  if (config.remoteOrigin && host === new URL(config.remoteOrigin).host && proto === 'https') {
-    const expectedPort = new URL(config.remoteOrigin).port || '443';
+  const remoteOrigin = (config.remoteOrigins ?? (config.remoteOrigin ? [config.remoteOrigin] : []))
+    .find(value => host === new URL(value).host);
+  if (remoteOrigin && proto === 'https') {
+    const expectedPort = new URL(remoteOrigin).port || '443';
     if ((forwardedHost !== undefined && forwardedHost !== host) || (forwardedPort !== undefined && forwardedPort !== expectedPort)) throw new ValidationError('Conflicting forwarded metadata.');
-    return { origin: config.remoteOrigin, secure: true };
+    return { origin: remoteOrigin, secure: true };
   }
   if (proto !== undefined || forwardedHost !== undefined || forwardedPort !== undefined || !config.localOrigins.includes(`http://${host}`)) throw new ValidationError('Host or forwarded protocol is not allowed.');
   return { origin: `http://${host}`, secure: false };
@@ -52,7 +54,10 @@ async function body(req: IncomingMessage): Promise<Record<string, unknown>> {
 }
 
 export function createApp(config: Config, options: Options = {}) {
-  const storage = options.storage ?? new Storage(config.dataDir, [...config.localOrigins, ...(config.remoteOrigin ? [config.remoteOrigin] : [])]);
+  if (process.env.STORAGE_BACKEND === 'postgresql' && !options.storage) throw new Error('PostgreSQL storage must be initialized before creating SiteDock.');
+  const remoteOrigins = config.remoteOrigins ?? (config.remoteOrigin ? [config.remoteOrigin] : []);
+  const gatewayAuth = config.authMode === 'gateway';
+  const storage: StorageBackend = options.storage ?? new Storage(config.dataDir, [...config.localOrigins, ...remoteOrigins]);
   const now = options.now ?? Date.now;
   const sessions = new Map<string, Session>();
   let failures = 0;
@@ -69,7 +74,13 @@ export function createApp(config: Config, options: Options = {}) {
     res.writeHead(status, { 'Content-Type': 'application/json; charset=utf-8' });
     res.end(JSON.stringify(value));
   };
-  const server = createServer(async (req, res) => {
+  const pendingRequests = new Set<Promise<void>>();
+  const server = createServer((req, res) => {
+    const pending = handleRequest(req, res);
+    pendingRequests.add(pending);
+    void pending.then(() => pendingRequests.delete(pending), () => pendingRequests.delete(pending));
+  });
+  async function handleRequest(req: IncomingMessage, res: ServerResponse): Promise<void> {
     res.setHeader('Cache-Control', 'no-store');
     res.setHeader('Content-Security-Policy', "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: http: https:; connect-src 'self'; frame-src http: https:; frame-ancestors 'none'; object-src 'none'; base-uri 'none'; form-action 'self'");
     res.setHeader('X-Frame-Options', 'DENY');
@@ -84,8 +95,9 @@ export function createApp(config: Config, options: Options = {}) {
       if (!['GET', 'HEAD'].includes(req.method ?? '')) {
         if (header(req, 'origin') !== origin) { send(res, 403, { error: 'An exact same-origin Origin header is required.' }); return; }
       }
-      if (path === '/api/health' && req.method === 'GET') { send(res, 200, { ok: true }); return; }
+      if (path === '/api/health' && req.method === 'GET') { await storage.ready?.(); send(res, 200, { ok: true }); return; }
       if (path === '/api/login' && req.method === 'POST') {
+        if (gatewayAuth) { send(res, 404, { error: 'SiteDock password login is disabled by gateway authentication.' }); return; }
         if (loginBusy || now() < retryAt) {
           res.setHeader('Retry-After', String(Math.max(1, Math.ceil((retryAt - now()) / 1000))));
           send(res, 429, { error: 'Login temporarily throttled. Try again later.' }); return;
@@ -115,6 +127,7 @@ export function createApp(config: Config, options: Options = {}) {
       }
       if (path === '/api/logout' && req.method === 'POST') {
         await body(req);
+        if (gatewayAuth) { send(res, 200, { authenticated: true, gatewayAuthenticated: true }); return; }
         if (token) sessions.delete(token);
         res.setHeader('Set-Cookie', cookie('', 0));
         send(res, 200, { authenticated: false }); return;
@@ -127,10 +140,11 @@ export function createApp(config: Config, options: Options = {}) {
           session = undefined;
         }
         if (path === '/api/session' && req.method === 'GET') {
-          const allowedOrigins = [...config.localOrigins, ...(config.remoteOrigin ? [config.remoteOrigin] : [])];
+          const allowedOrigins = [...config.localOrigins, ...remoteOrigins];
+          if (gatewayAuth) { send(res, 200, { authenticated: true, gatewayAuthenticated: true, allowedOrigins }); return; }
           send(res, 200, session ? { authenticated: true, username: session.username, allowedOrigins } : { authenticated: false, allowedOrigins }); return;
         }
-        if (!session) { send(res, 401, { error: 'Sign in to continue.' }); return; }
+        if (!gatewayAuth && !session) { send(res, 401, { error: 'Sign in to continue.' }); return; }
         if (path === '/api/favorites' && req.method === 'GET') { send(res, 200, await storage.read()); return; }
         if (path === '/api/favorites' && req.method === 'PUT') {
           const input = await body(req);
@@ -158,8 +172,10 @@ export function createApp(config: Config, options: Options = {}) {
       if (error instanceof ValidationError) { send(res, 400, { error: error.message }); return; }
       send(res, 503, { error: 'Local storage is unavailable. Check the data files and permissions.' });
     }
-  });
+  }
   server.requestTimeout = 15_000;
   server.headersTimeout = 10_000;
-  return server;
+  return Object.assign(server, {
+    async drainRequests(): Promise<void> { await Promise.allSettled(pendingRequests); },
+  });
 }

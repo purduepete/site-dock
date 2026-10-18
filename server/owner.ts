@@ -44,4 +44,9 @@ try {
 } catch (error) {
   console.error(error instanceof Error ? error.message : 'Owner setup failed.');
   process.exitCode = 1;
+} finally {
+  if (process.env.STORAGE_BACKEND === 'postgresql') {
+    const { closePostgresStorage } = await import('./postgres.js');
+    await closePostgresStorage();
+  }
 }

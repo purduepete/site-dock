@@ -1,5 +1,67 @@
 # SiteDock
 
+## SolutionDeploy handoff
+
+Target favorites/groups/revisions and owner records use the dedicated `site_dock`
+PostgreSQL database. See [the PostgreSQL cutover procedure](deploy/postgresql/README.md).
+`STORAGE_BACKEND=postgresql` requires `DATABASE_URL` in private shared secrets and
+schema version 1. Startup validates the ledger without DDL or file fallback.
+Production sets `SITEDOCK_AUTH_MODE=gateway`: Cloudflare Access protects the public
+route, and the tailnet route relies on Tailscale ACLs. SiteDock does not read identity
+headers from either proxy. Its HTTP server binds only to `127.0.0.1`; configure each
+exact HTTPS proxy origin in `SITEDOCK_REMOTE_ORIGINS` as a comma-separated list.
+The existing `SITEDOCK_REMOTE_ORIGIN` setting remains supported. Local development
+keeps owner-password login unless `SITEDOCK_AUTH_MODE=gateway` is set explicitly.
+
+`deploy\application.json` describes the `jimbrownhome` checkout and `SiteDock`
+task. It requires Node 22.12 or newer, builds with `npm ci` and `npm run build`,
+and starts `dist\server\main.js` directly on `127.0.0.1:8790` with exact remote
+origins `https://site-dock.jimlertech.com`, `https://sitedock.jimlertech.com`,
+and `https://jimbrownhome1.tail8ad282.ts.net:8790`. Readiness is `/api/health`
+returning `ok: true`.
+
+The 2026-10-17 hosting audit (3:16 PM local) confirms the exact `SiteDock` task
+name, `C:\Files\Dev\main\sitedock` task working directory, and loopback port
+8790. Both build commands run at the staged release root
+(`workingDirectory: "."`). TypeScript's root is the repository, so the server
+build writes `dist\server\main.js`; Vite writes `frontend\dist`.
+Committed `.env.example` and `.env.development` contain nonsecret defaults, while
+the actual `.env` remains private state. The existing development launcher still
+loads `.env.development`; packaging must preserve that development contract.
+
+Verify the source task's effective data directory before migration. Copy
+`favorites.json`, `owner.json`, their available `.bak` files, and `.env` using the
+manifest inventory after stopping the source writer. Preserve the owner hash
+record with restricted permissions in archived source backups and import it
+unchanged into PostgreSQL. Source `.env` is archived as
+`secrets\source\app.env`, separate from runtime `secrets\app.env`.
+Before activation, prepare the runtime file in a secure terminal outside VS Code
+from the reviewed frozen export, preserving needed service settings and adding
+the target `DATABASE_URL`. Exclude all keys declared in `launch.environment`.
+There is no automatic credential merge. Restrict access to the runtime account
+and administrators; verify readability, database identity and readiness through
+the reviewed activation checks. Explicit lifecycle environment takes precedence,
+including the configured origin and data directory. Embedded-app tokens remain
+in each browser's SiteDock-origin local storage and never enter the server or
+database. Keep the existing user-facing origin unchanged to preserve those tokens;
+changing the origin requires signing in to each embedded app again on each device.
+
+The manifest deliberately excludes `server.lock`, `owner.lock`, `server.pid`,
+pending atomic-write files, and launcher ownership markers. Inspect those on the
+source before migration, never copy them as active ownership. The PostgreSQL
+runtime uses database transactions and skips legacy directory ACL/lock operations.
+Legacy log files are retained under shared logs; the
+generic lifecycle writes new stdout/stderr there, outside the release. It must
+launch the entrypoint directly and must not reuse the old launcher's mutable
+path defaults.
+
+The entrypoint polls private `SOLUTIONDEPLOY_STOP_FILE` every 250 ms.
+Creating `{run}\stop.request` uses the same shutdown path as SIGINT/SIGTERM:
+stop accepting requests, wait for HTTP work and the storage write queue, then
+close the PostgreSQL pool (or release the legacy file lock) and exit. Remove a previous stop request before each launch and
+wait for exit before replacing a release. Windows process termination does not
+guarantee a write drain.
+
 A local favorites dashboard with a vertical sidebar and an embedded page area. Favorites are shared across browsers through a local JSON file. One owner account protects the dashboard.
 
 ## Styling

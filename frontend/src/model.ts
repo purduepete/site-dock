@@ -1,6 +1,6 @@
 export type Favorite = { id: string; name: string; url: string; mode: 'embed' | 'external'; groups?: string[] };
 export type Store = { revision: number; favorites: Favorite[]; groups?: string[] };
-export type Session = { authenticated: boolean; username?: string; allowedOrigins?: string[] };
+export type Session = { authenticated: boolean; username?: string; allowedOrigins?: string[]; gatewayAuthenticated?: boolean };
 export type Theme = 'dark' | 'light' | 'system';
 
 export function readPreference(key: string, fallback = ''): string {

@@ -10,6 +10,22 @@ const exec = promisify(execFile);
 export interface Favorite { id: string; name: string; url: string; mode: 'embed' | 'external'; groups?: string[] }
 export interface FavoritesStore { revision: number; favorites: Favorite[]; groups: string[] }
 export interface Owner { username: string; salt: string; hash: string; version: string }
+export interface StorageBackend {
+  initialize(): Promise<void>;
+  read(): Promise<FavoritesStore>;
+  update(baseRevision: unknown, favorites: unknown, operation?: unknown, groupNames?: unknown): Promise<FavoritesStore>;
+  drain(): Promise<void>;
+  close?(): Promise<void>;
+  ready?(): Promise<void>;
+}
+
+export async function createStorage(directory: string, forbiddenOrigins: string[] = []): Promise<StorageBackend> {
+  const backend = process.env.STORAGE_BACKEND ?? 'files';
+  if (backend === 'files') return new Storage(directory, forbiddenOrigins);
+  if (backend !== 'postgresql') throw new Error('Unsupported STORAGE_BACKEND.');
+  const { getPostgresStorage } = await import('./postgres.js');
+  return getPostgresStorage(forbiddenOrigins);
+}
 export class ValidationError extends Error {}
 export class ConflictError extends Error {
   constructor(public current: FavoritesStore) { super('Favorites changed. Reconcile your changes and retry.'); }
@@ -132,6 +148,7 @@ export async function acquireLock(directory: string, name = 'server.lock'): Prom
 export class Storage {
   private queue: Promise<unknown> = Promise.resolve();
   constructor(public directory: string, private forbiddenOrigins: string[] = []) {}
+  async drain(): Promise<void> { await this.queue; }
   async initialize(): Promise<void> {
     await secureDirectory(this.directory);
     try { await this.read(); }
@@ -178,6 +195,11 @@ export class Storage {
 }
 
 export async function readOwner(directory: string): Promise<Owner> {
+  if (process.env.STORAGE_BACKEND && !['files', 'postgresql'].includes(process.env.STORAGE_BACKEND)) throw new Error('Unsupported STORAGE_BACKEND.');
+  if (process.env.STORAGE_BACKEND === 'postgresql') {
+    const { getPostgresStorage } = await import('./postgres.js');
+    return (await getPostgresStorage()).readOwner();
+  }
   const owner = JSON.parse(await readFile(join(directory, 'owner.json'), 'utf8')) as Owner;
   if (typeof owner.username !== 'string' || !owner.username.trim() || owner.username.length > 80 ||
       !/^[0-9a-f]{32}$/.test(owner.salt) || !/^[0-9a-f]{128}$/.test(owner.hash) || !/^[0-9a-f-]{36}$/.test(owner.version)) {
@@ -187,8 +209,13 @@ export async function readOwner(directory: string): Promise<Owner> {
 }
 
 export async function writeOwner(directory: string, username: string, password: string, options: { setup?: boolean } = {}): Promise<Owner> {
+  if (process.env.STORAGE_BACKEND && !['files', 'postgresql'].includes(process.env.STORAGE_BACKEND)) throw new Error('Unsupported STORAGE_BACKEND.');
   if (!username.trim() || username.length > 80 || /[\r\n\0]/.test(username)) throw new ValidationError('Username must contain 1 to 80 characters.');
   if (password.length < 12 || password.length > 1024) throw new ValidationError('Password must contain 12 to 1024 characters.');
+  if (process.env.STORAGE_BACKEND === 'postgresql') {
+    const { getPostgresStorage } = await import('./postgres.js');
+    return (await getPostgresStorage()).writeOwner(username, password, options);
+  }
   await secureDirectory(directory);
   const release = await acquireLock(directory, 'owner.lock');
   try {

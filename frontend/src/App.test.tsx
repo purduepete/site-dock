@@ -11,6 +11,7 @@ const favorites: Favorite[] = [
   { id: 'three', name: 'News', url: 'https://news.example.com/', mode: 'external' },
 ];
 let authenticated: boolean;
+let gatewayAuthenticated: boolean;
 let revision: number;
 let data: Favorite[];
 let conflict: boolean;
@@ -26,7 +27,7 @@ const sites = (count: number, groups?: string[], start = 1): Favorite[] => Array
 beforeEach(() => {
   HTMLDialogElement.prototype.showModal = function () { this.setAttribute('open', ''); };
   HTMLDialogElement.prototype.close = function () { this.removeAttribute('open'); };
-  authenticated = true; revision = 1; data = favorites.map(item => ({ ...item })); conflict = false; failSave = false; requests = [];
+  authenticated = true; gatewayAuthenticated = false; revision = 1; data = favorites.map(item => ({ ...item })); conflict = false; failSave = false; requests = [];
   groupNames = []; conflictStore = null;
   const preferences = new Map<string, string>();
   vi.stubGlobal('localStorage', {
@@ -41,7 +42,7 @@ beforeEach(() => {
     requests.push({ path: input, body });
     let value: unknown = {};
     let status = 200;
-    if (input === '/api/session') value = { authenticated, username: 'owner', allowedOrigins: ['https://dock.example.com'] };
+    if (input === '/api/session') value = { authenticated, username: 'owner', gatewayAuthenticated, allowedOrigins: ['https://dock.example.com'] };
     if (input === '/api/login') { authenticated = true; value = { authenticated: true }; }
     if (input === '/api/logout') { authenticated = false; }
     if (input === '/api/favorites') {
@@ -57,6 +58,13 @@ afterEach(() => { cleanup(); vi.unstubAllGlobals(); });
 async function ready() { render(<App />); await screen.findByTitle('Example'); }
 
 describe('dashboard sessions and embedded pages', () => {
+  it('shows gateway-protected status without a duplicate SiteDock sign-out control', async () => {
+    gatewayAuthenticated = true;
+    await ready();
+    expect(screen.getByText('Access protected')).toBeTruthy();
+    expect(screen.queryByRole('button', { name: 'Sign out' })).toBeNull();
+  });
+
   it('restores the removed ungrouped preference to All sites', async () => {
     localStorage.setItem('sitedock.group', 'ungrouped');
     await ready();

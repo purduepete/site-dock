@@ -21,6 +21,12 @@ test('config validates ports and exact HTTPS origins', () => {
   assert.throws(() => loadConfig({ SITEDOCK_REMOTE_ORIGIN: 'http://example.com' }));
   assert.throws(() => loadConfig({ SITEDOCK_REMOTE_ORIGIN: 'https://example.com/path' }));
   assert.equal(loadConfig({ SITEDOCK_REMOTE_ORIGIN: 'https://example.com:8443/' }).remoteOrigin, 'https://example.com:8443');
+  assert.deepEqual(loadConfig({ SITEDOCK_REMOTE_ORIGINS: 'https://dock.example, https://tail.example:8443' }).remoteOrigins,
+    ['https://dock.example', 'https://tail.example:8443']);
+  assert.throws(() => loadConfig({ SITEDOCK_REMOTE_ORIGINS: 'https://dock.example,not-an-origin' }));
+  assert.equal(loadConfig({}).authMode, 'owner');
+  assert.equal(loadConfig({ SITEDOCK_AUTH_MODE: 'gateway' }).authMode, 'gateway');
+  assert.throws(() => loadConfig({ SITEDOCK_AUTH_MODE: 'headers' }));
   assert.throws(() => loadConfig({ SITEDOCK_DEV_ORIGIN: 'http://127.0.0.1:5173' }));
   assert.throws(() => loadConfig({ NODE_ENV: 'production', SITEDOCK_DEV_ORIGIN: 'http://127.0.0.1:5173' }));
   assert.throws(() => loadConfig({ NODE_ENV: 'development', SITEDOCK_DEV_ORIGIN: 'http://evil.example:5173' }));
@@ -179,7 +185,7 @@ test('HTTP authentication, persistence, reset, origin/proxy boundaries and stati
   await writeFile(join(config.distDir, 'sitedock-keys.js'), '// forwarder');
   await writeFile(join(config.distDir, 'sitedock-token.js'), '// token handoff');
   await writeFile(join(directory, 'private.txt'), 'private');
-  const storage = new Storage(directory, [...config.localOrigins, config.remoteOrigin!]);
+  const storage = new Storage(directory, [...config.localOrigins, ...(config.remoteOrigins ?? [])]);
   await storage.initialize();
   await writeOwner(directory, 'owner', 'long password 123');
   let clock = Date.now();
@@ -277,6 +283,64 @@ test('HTTP authentication, persistence, reset, origin/proxy boundaries and stati
     await writeFile(join(directory, 'owner.json'), '{broken');
     assert.equal((await call('/api/session')).status, 503);
     assert.equal((await call('/api/favorites', 'GET', undefined, authenticated)).status, 503);
+  } finally {
+    await new Promise<void>((resolve, reject) => app.close(error => error ? reject(error) : resolve()));
+  }
+}));
+
+test('gateway authentication relies on the loopback perimeter, accepts exact aliases, and disables duplicate password login', async () => fixture(async directory => {
+  const config = loadConfig({
+    SITEDOCK_DATA_DIR: directory,
+    SITEDOCK_AUTH_MODE: 'gateway',
+    SITEDOCK_REMOTE_ORIGINS: 'https://dock.example,https://tail.example:8443',
+  });
+  const storage = new Storage(directory, [...config.localOrigins, ...(config.remoteOrigins ?? [])]);
+  await storage.initialize();
+  await writeOwner(directory, 'owner', 'long password 123');
+  const app = createApp(config, { storage });
+  await new Promise<void>(resolve => app.listen(0, '127.0.0.1', resolve));
+  const address = app.address();
+  assert.ok(address && typeof address === 'object');
+  const port = address.port;
+  const call = (path: string, method = 'GET', data?: unknown, extra: Record<string, string> = {}) =>
+    new Promise<{ status: number; headers: import('node:http').IncomingHttpHeaders; json: any }>((resolve, reject) => {
+      const serialized = data === undefined ? undefined : JSON.stringify(data);
+      const req = request({
+        host: '127.0.0.1', port, path, method,
+        headers: {
+          Host: 'tail.example:8443',
+          'X-Forwarded-Proto': 'https',
+          ...(serialized ? { 'Content-Type': 'application/json', 'Content-Length': String(Buffer.byteLength(serialized)) } : {}),
+          ...extra,
+        },
+      }, res => {
+        const chunks: Buffer[] = [];
+        res.on('data', chunk => chunks.push(chunk));
+        res.on('end', () => {
+          const text = Buffer.concat(chunks).toString();
+          let json: unknown; try { json = JSON.parse(text); } catch { /* Ignore non-JSON replies. */ }
+          resolve({ status: res.statusCode!, headers: res.headers, json });
+        });
+      });
+      req.on('error', reject); req.end(serialized);
+    });
+  try {
+    const session = await call('/api/session');
+    assert.equal(session.status, 200);
+    assert.equal(session.json.authenticated, true);
+    assert.equal(session.json.gatewayAuthenticated, true);
+    assert.deepEqual(session.json.allowedOrigins, [...config.localOrigins, ...config.remoteOrigins!]);
+    assert.equal((await call('/api/favorites')).status, 200);
+    assert.equal((await call('/api/login', 'POST', { username: 'owner', password: 'long password 123' }, {
+      Origin: 'https://tail.example:8443',
+    })).status, 404);
+    assert.equal((await call('/api/logout', 'POST', {}, { Origin: 'https://tail.example:8443' })).json.gatewayAuthenticated, true);
+    assert.equal((await call('/api/session', 'GET', undefined, { Host: 'evil.example' })).status, 400);
+    assert.equal((await call('/api/session', 'GET', undefined, { Host: 'dock.example', 'X-Forwarded-Proto': 'https' })).json.authenticated, true);
+    assert.equal((await call('/api/favorites', 'PUT', { baseRevision: 0, favorites: [] }, {
+      Origin: 'https://tail.example:8443',
+      'X-Forwarded-User': 'untrusted@example.com',
+    })).status, 200);
   } finally {
     await new Promise<void>((resolve, reject) => app.close(error => error ? reject(error) : resolve()));
   }

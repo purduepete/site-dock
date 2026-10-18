@@ -407,7 +407,7 @@ export function App() {
         </div>; })}
         {store && !visibleFavorites.length && <p className="sidebar-empty">{groupFilter === 'all' ? 'Add your first favorite to get started.' : 'No sites in this group. Add a favorite or edit a site in All sites to assign it here.'}</p>}
       </nav>
-      <footer className="sidebar-footer">{themeControl}<div className="account"><span><small>Signed in as</small>{session.username ?? 'Owner'}</span><button aria-label="Sign out" title="Sign out of SiteDock" onClick={() => void logout()}><Icon name="logout" /></button></div></footer>
+      <footer className="sidebar-footer">{themeControl}<div className="account"><span><small>{session.gatewayAuthenticated ? 'Access protected' : 'Signed in as'}</small>{session.gatewayAuthenticated ? 'Gateway' : session.username ?? 'Owner'}</span>{!session.gatewayAuthenticated && <button aria-label="Sign out" title="Sign out of SiteDock" onClick={() => void logout()}><Icon name="logout" /></button>}</div></footer>
     </aside>
     <div role="separator" aria-label="Sidebar width" aria-orientation="vertical" aria-valuemin={220} aria-valuemax={480} aria-valuenow={width} tabIndex={0} className="resize-handle"
       onKeyDown={event => { if (['ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(event.key)) { event.preventDefault(); setWidth(value => event.key === 'Home' ? 220 : event.key === 'End' ? 480 : clampWidth(value + (event.key === 'ArrowRight' ? 10 : -10))); } }}

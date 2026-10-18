@@ -18,6 +18,8 @@
     "test": "npm run test:server && npm run test:frontend && npm run test:startup",
     "test:e2e": "playwright test",
     "test:startup": "node --test tests/startup.test.mjs",
+    "test:postgres": "tsc -p tsconfig.server.json && node --test dist/server/postgres.integration.js",
+    "test:postgres:import": "tsc -p tsconfig.server.json && node --test dist/server/postgresImport.integration.js",
     "owner": "node --env-file-if-exists=.env --import tsx server/owner.ts",
     "start": "node --env-file-if-exists=.env dist/server/main.js",
     "update": "pwsh -NoProfile -File scripts/update.ps1"
@@ -25,13 +27,15 @@
   "dependencies": {
     "@fontsource-variable/roboto-flex": "^5.2.0",
     "react": "^19.2.0",
-    "react-dom": "^19.2.0"
+    "react-dom": "^19.2.0",
+    "pg": "^8.16.3"
   },
   "devDependencies": {
     "@playwright/test": "^1.56.0",
     "@testing-library/react": "^16.3.0",
     "@testing-library/user-event": "^14.6.1",
     "@types/node": "^24.0.0",
+    "@types/pg": "^8.15.5",
     "@types/react": "^19.2.0",
     "@types/react-dom": "^19.2.0",
     "@vitejs/plugin-react": "^5.0.0",
