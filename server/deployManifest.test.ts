@@ -28,7 +28,7 @@ test('the manifest launches directly with explicit shared paths and a new exact 
   assert.equal(manifest.launch.environment.SOLUTIONDEPLOY_STOP_FILE, undefined);
   assert.equal(manifest.launch.environment.SITEDOCK_REMOTE_ORIGIN, undefined);
   assert.equal(manifest.launch.environment.SITEDOCK_REMOTE_ORIGINS,
-    'https://site-dock.jimlertech.com,https://sitedock.jimlertech.com,https://jimbrownhome1.tail8ad282.ts.net:8790');
+    'https://site-dock.jimlertech.com,https://jimbrownhome1.tail8ad282.ts.net:8790');
   assert.deepEqual(manifest.source.tasks, ['SiteDock']);
   const environment = {
     ...manifest.launch.environment,
@@ -38,7 +38,6 @@ test('the manifest launches directly with explicit shared paths and a new exact 
   assert.equal(config.port, 8790);
   assert.deepEqual(config.remoteOrigins, [
     'https://site-dock.jimlertech.com',
-    'https://sitedock.jimlertech.com',
     'https://jimbrownhome1.tail8ad282.ts.net:8790',
   ]);
   assert.equal(config.dataDir, environment.SITEDOCK_DATA_DIR);

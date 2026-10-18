@@ -95,8 +95,7 @@ Tailscale ACLs. The app listens only on `127.0.0.1` and does not trust forwarded
 identity headers. Set `SITEDOCK_REMOTE_ORIGINS` to the exact HTTPS origin of each
 configured proxy route so host and CSRF origin checks accept the Cloudflare and
 tailnet URLs. The existing `SITEDOCK_REMOTE_ORIGIN` variable remains supported.
-The deployment manifest lists `https://site-dock.jimlertech.com`,
-`https://sitedock.jimlertech.com`, and
+The deployment manifest lists `https://site-dock.jimlertech.com` and
 `https://jimbrownhome1.tail8ad282.ts.net:8790`.
 The owner record is still imported and preserved, while password login stays
 available in the default `owner` mode for local use. Embedded-app tokens remain

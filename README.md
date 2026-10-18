@@ -16,8 +16,8 @@ keeps owner-password login unless `SITEDOCK_AUTH_MODE=gateway` is set explicitly
 `deploy\application.json` describes the `jimbrownhome` checkout and `SiteDock`
 task. It requires Node 22.12 or newer, builds with `npm ci` and `npm run build`,
 and starts `dist\server\main.js` directly on `127.0.0.1:8790` with exact remote
-origins `https://site-dock.jimlertech.com`, `https://sitedock.jimlertech.com`,
-and `https://jimbrownhome1.tail8ad282.ts.net:8790`. Readiness is `/api/health`
+origins `https://site-dock.jimlertech.com` and
+`https://jimbrownhome1.tail8ad282.ts.net:8790`. Readiness is `/api/health`
 returning `ok: true`.
 
 The 2026-10-17 hosting audit (3:16 PM local) confirms the exact `SiteDock` task

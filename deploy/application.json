@@ -24,7 +24,7 @@
       "STORAGE_BACKEND": "postgresql",
       "SITEDOCK_AUTH_MODE": "gateway",
       "SITEDOCK_DATA_DIR": "{data}",
-      "SITEDOCK_REMOTE_ORIGINS": "https://site-dock.jimlertech.com,https://sitedock.jimlertech.com,https://jimbrownhome1.tail8ad282.ts.net:8790"
+      "SITEDOCK_REMOTE_ORIGINS": "https://site-dock.jimlertech.com,https://jimbrownhome1.tail8ad282.ts.net:8790"
     },
     "secretFile": "app.env",
     "stopFileEnvironment": "SOLUTIONDEPLOY_STOP_FILE"
