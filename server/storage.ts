@@ -34,7 +34,7 @@ export class ConflictError extends Error {
 const seeds: Favorite[] = [
   { id: 'ferry-tracker', name: 'Ferry Tracker', url: 'https://ferry-tracker.jimlertech.com/', mode: 'embed' },
   { id: 'home', name: 'SmartDevices', url: 'https://home-automation.jimlertech.com/', mode: 'embed' },
-  { id: 'fittrack', name: 'FitTrack', url: 'https://fit-track.jimlertech.com/', mode: 'embed' },
+  { id: 'fittrack', name: 'Fit Track', url: 'https://fit-track.jimlertech.com/', mode: 'embed' },
   { id: 'espn', name: 'ESPN', url: 'https://www.espn.com/', mode: 'external' },
 ];
 
