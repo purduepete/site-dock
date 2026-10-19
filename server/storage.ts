@@ -32,9 +32,9 @@ export class ConflictError extends Error {
 }
 
 const seeds: Favorite[] = [
-  { id: 'ferry-tracker', name: 'Ferry Tracker', url: 'http://100.114.72.86:8787/', mode: 'embed' },
-  { id: 'home', name: 'SmartDevices', url: 'https://jimbrownhome.tail8ad282.ts.net:8443/', mode: 'embed' },
-  { id: 'fittrack', name: 'FitTrack', url: 'https://fittrack-api.graymoss-46d6bacd.eastus2.azurecontainerapps.io/', mode: 'embed' },
+  { id: 'ferry-tracker', name: 'Ferry Tracker', url: 'https://ferry-tracker.jimlertech.com/', mode: 'embed' },
+  { id: 'home', name: 'SmartDevices', url: 'https://home-automation.jimlertech.com/', mode: 'embed' },
+  { id: 'fittrack', name: 'FitTrack', url: 'https://fit-track.jimlertech.com/', mode: 'embed' },
   { id: 'espn', name: 'ESPN', url: 'https://www.espn.com/', mode: 'external' },
 ];
 

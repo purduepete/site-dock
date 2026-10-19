@@ -234,7 +234,7 @@ The initial list contains the 4 supplied URLs. It is seeded only for a new data 
 SiteDock respects each site's framing and sign-in restrictions. It cannot guarantee that arbitrary websites work inside a frame.
 
 - ESPN disallows embedding in SiteDock and starts in external mode.
-- The HTTP favorite at `http://100.114.72.86:8787/` opens externally when SiteDock is accessed through HTTPS. Local HTTP access may permit embedding.
+- Ferry Tracker opens through its HTTPS public hostname, so SiteDock can embed it.
 - The two other supplied HTTPS apps are embedding candidates. Their complete pages, redirects, and sign-ins need browser testing.
 - Third-party cookie restrictions can prevent embedded sign-ins even when a page renders. Use external mode if needed.
 - Frames have scripts, forms, and popup permissions, but cannot navigate SiteDock's top-level page. SiteDock's configured origins cannot be added as favorites.
