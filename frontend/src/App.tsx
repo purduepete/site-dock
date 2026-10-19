@@ -355,7 +355,7 @@ export function App() {
   const themeControl = <div className="theme-control"><span>Theme</span><Dropdown<Theme> label="Theme" value={theme} onChange={setTheme} options={[{ value: 'system', label: 'System' }, { value: 'dark', label: 'Dark' }, { value: 'light', label: 'Light' }]} /></div>;
 
   if (!session?.authenticated) return <div className="login-page">
-    <header className="login-header"><span className="wordmark"><span className="brand-mark">S</span>SiteDock</span>{themeControl}</header>
+    <header className="login-header"><span className="wordmark"><span className="brand-mark"><img className="brand-icon" src="/favicon.svg" alt="" /></span>SiteDock</span>{themeControl}</header>
     <main className="login-card"><p className="eyebrow">YOUR SITES, ONE PLACE</p><h1>Your everyday dock.</h1><p className="muted">Sign in to your shared favorites. Your sites keep their own accounts and sign-ins.</p>
       {error && <div role="alert" className="error">{error}</div>}
       {session === null ? <><p role="status">Checking your session…</p>{error && <button onClick={() => void checkSession()}>Retry connection</button>}</> :
@@ -393,10 +393,10 @@ export function App() {
     }} />}
     {sidebar && <button className="scrim" aria-label="Close favorites" onClick={() => setSidebar(false)} />}
     <aside id="favorites-sidebar" className={`sidebar ${sidebar ? 'is-open' : ''}`} aria-label="Favorites">
-      <div className="sidebar-brand"><span className="wordmark"><span className="brand-mark mobile-only">S</span><button type="button" className="brand-mark brand-toggle desktop-only" aria-label={minimized ? 'Expand favorites' : 'Minimize favorites'} title={minimized ? 'Expand sidebar' : 'Minimize sidebar'} aria-controls="favorites-sidebar" aria-expanded={!minimized} onClick={() => {
+      <div className="sidebar-brand"><span className="wordmark"><span className="brand-mark mobile-only"><img className="brand-icon" src="/favicon.svg" alt="" /></span><button type="button" className="brand-mark brand-toggle desktop-only" aria-label={minimized ? 'Expand favorites' : 'Minimize favorites'} title={minimized ? 'Expand sidebar' : 'Minimize sidebar'} aria-controls="favorites-sidebar" aria-expanded={!minimized} onClick={() => {
         const next = !minimized;
         setMinimized(next); setResizing(false); savePreference('sidebar-minimized', String(next));
-      }}>S</button>SiteDock</span><button className="mobile-only" aria-label="Close favorites" onClick={() => setSidebar(false)}><Icon name="close" /></button></div>
+      }}><img className="brand-icon" src="/favicon.svg" alt="" /></button>SiteDock</span><button className="mobile-only" aria-label="Close favorites" onClick={() => setSidebar(false)}><Icon name="close" /></button></div>
       <div className="section-heading list-heading"><span className="eyebrow">FAVORITES <span className="count">{visibleFavorites.length}</span></span><button aria-label="Add favorite" disabled={!store || busy} onClick={() => { setEditor({ id: crypto.randomUUID(), name: '', url: '', mode: 'embed', ...(groupFilter.startsWith('group:') && visibleFavorites.length < GROUP_LIMIT ? { groups: [groupFilter.slice(6)] } : {}) }); setSidebar(false); }}><Icon name="plus" /></button></div>
       <div className="group-filter" title="Switch group (Alt+G)"><Dropdown label="Group" value={groupFilter} options={[
         { value: 'all', label: 'All sites' },

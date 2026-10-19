@@ -190,7 +190,7 @@ describe('dashboard sessions and embedded pages', () => {
     await ready();
     const frame = screen.getByTitle('Example');
     const logo = screen.getByRole('button', { name: 'Minimize favorites' });
-    expect(logo.textContent).toBe('S');
+    expect(logo.querySelector('img')?.getAttribute('src')).toBe('/favicon.svg');
     await userEvent.click(logo);
     expect(document.querySelector('.app')?.classList.contains('sidebar-minimized')).toBe(true);
     expect(localStorage.getItem('sitedock.sidebar-minimized')).toBe('true');

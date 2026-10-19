@@ -23,7 +23,8 @@ p { font-size: 14px; line-height: 1.6; }
 .muted { color: var(--muted); }
 .eyebrow { font-size: 10px; font-weight: 650; letter-spacing: 1.7px; color: var(--muted); }
 .wordmark { display: flex; gap: 10px; align-items: center; font-size: 21px; font-weight: 650; letter-spacing: -.6px; }
-.brand-mark { display: inline-flex; width: 30px; height: 30px; align-items: center; justify-content: center; background: var(--primary); border: 1px solid var(--primary); color: var(--on-primary); font-size: 21px; font-weight: 650; }
+.brand-mark { display: inline-flex; width: 30px; height: 30px; align-items: center; justify-content: center; background: transparent; border: 0; }
+.brand-icon { width: 30px; height: 30px; display: block; }
 /* Fixed and full-width so Safari 26 treats it as the top bar: it tints the status bar with --panel and skips the soft-edge blur over the headers. */
 .app { position: fixed; inset: 0; display: flex; overflow: hidden; background: var(--panel); padding-left: env(safe-area-inset-left); padding-right: env(safe-area-inset-right); padding-top: env(safe-area-inset-top); }
 .sidebar { flex-shrink: 0; width: var(--sidebar-width); background: var(--panel); display: flex; flex-direction: column; min-height: 0; user-select: none; caret-color: transparent; }
@@ -89,7 +90,7 @@ p { font-size: 14px; line-height: 1.6; }
 .toolbar { display: flex; gap: 7px; flex-shrink: 0; }
 .toolbar button, .toolbar .button { min-height: 30px; padding: 5px 9px; font-size: 12px; }
 .brand-toggle { min-height: 30px; padding: 0; flex-shrink: 0; line-height: 1; }
-.brand-toggle:hover { background: var(--primary-hover); color: var(--on-primary); }
+.brand-toggle:hover { background: transparent; opacity: 0.8; }
 .desktop-only { display: inline-flex; }
 @media (min-width: 721px) {
   .sidebar-minimized > .sidebar { width: 50px; border-right: 1px solid var(--border); }
