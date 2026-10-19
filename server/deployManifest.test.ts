@@ -18,7 +18,7 @@ test('the manifest launches directly with explicit shared paths and a new exact 
     { tool: 'npm', arguments: ['ci'], workingDirectory: '.' },
     { tool: 'npm', arguments: ['run', 'build'], workingDirectory: '.' },
   ]);
-  assert.equal(manifest.source.root, 'C:\\Files\\Dev\\main\\sitedock');
+  assert.equal(manifest.source.root, 'C:\\Files\\Dev\\main\\site-dock');
   assert.equal(manifest.launch.entrypoint, 'dist\\server\\main.js');
   assert.equal(manifest.launch.secretFile, 'app.env');
   assert.ok(manifest.state.some((item: { source: string; target: string }) =>

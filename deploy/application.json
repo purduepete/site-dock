@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
   "id": "site-dock",
-  "repository": "https://github.com/purduepete/sitedock.git",
+  "repository": "https://github.com/purduepete/site-dock.git",
   "database": {
     "engine": "postgresql", "name": "site_dock",
     "connectionEnvironment": "DATABASE_URL", "backendEnvironment": "STORAGE_BACKEND",
@@ -55,7 +55,7 @@
   "routes": [{ "hostname": "site-dock.jimlertech.com" }],
   "source": {
     "host": "jimbrownhome",
-    "root": "C:\\Files\\Dev\\main\\sitedock",
+    "root": "C:\\Files\\Dev\\main\\site-dock",
     "tasks": ["SiteDock"]
   }
 }

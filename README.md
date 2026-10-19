@@ -21,7 +21,7 @@ origins `https://site-dock.jimlertech.com` and
 returning `ok: true`.
 
 The 2026-10-17 hosting audit (3:16 PM local) confirms the exact `SiteDock` task
-name, `C:\Files\Dev\main\sitedock` task working directory, and loopback port
+name, `C:\Files\Dev\main\site-dock` task working directory, and loopback port
 8790. Both build commands run at the staged release root
 (`workingDirectory: "."`). TypeScript's root is the repository, so the server
 build writes `dist\server\main.js`; Vite writes `frontend\dist`.
@@ -92,8 +92,8 @@ Validation includes server and frontend tests, Microsoft Edge integration tests,
 `scripts\install.ps1` sets up a machine in one step. Run it from a normal, non-elevated `pwsh` window as the account that owns the checkout:
 
 ```powershell
-git clone https://github.com/purduepete/sitedock C:\Files\Dev\main\sitedock
-Set-Location C:\Files\Dev\main\sitedock
+git clone https://github.com/purduepete/site-dock C:\Files\Dev\main\site-dock
+Set-Location C:\Files\Dev\main\site-dock
 pwsh -NoProfile -File scripts\install.ps1
 ```
 
@@ -139,7 +139,7 @@ Web Options only allows framing from listed SiteDock origins (`backend/src/app.t
 Run commands from the project root:
 
 ```powershell
-Set-Location C:\Files\Dev\main\sitedock
+Set-Location C:\Files\Dev\main\site-dock
 npm ci
 Copy-Item .env.example .env
 ```
@@ -300,7 +300,7 @@ Before relying on remote use, verify from a second device:
 To inspect the production process and stop this instance, run:
 
 ```powershell
-Set-Location C:\Files\Dev\main\sitedock
+Set-Location C:\Files\Dev\main\site-dock
 $serverPid = [int](Get-Content .\data\server.lock)
 Get-CimInstance Win32_Process -Filter "ProcessId = $serverPid" |
     Select-Object ProcessId, ExecutablePath, CommandLine
