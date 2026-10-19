@@ -11,8 +11,8 @@ export function useTheme() {
     const apply = () => {
       const resolved = theme === 'system' ? media.matches ? 'dark' : 'light' : theme;
       document.documentElement.dataset.theme = resolved;
-      document.documentElement.style.backgroundColor = resolved === 'dark' ? '#020617' : '#f4f5fb';
-      document.querySelector('meta[name="theme-color"]')?.setAttribute('content', resolved === 'dark' ? '#020617' : '#f4f5fb');
+      document.documentElement.style.backgroundColor = resolved === 'dark' ? '#0f172a' : '#ffffff';
+      document.querySelector('meta[name="theme-color"]')?.setAttribute('content', resolved === 'dark' ? '#0f172a' : '#ffffff');
     };
     savePreference('theme', theme);
     apply();

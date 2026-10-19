@@ -90,13 +90,13 @@ test('retains the supplied embedded apps and supports editing and themes', async
   }
   await page.getByRole('combobox', { name: 'Theme' }).click();
   await page.getByRole('option', { name: 'Light', exact: true }).click();
-  await expect(page.locator('meta[name="theme-color"]')).toHaveAttribute('content', '#f4f5fb');
-  await expect(page.locator('html')).toHaveCSS('background-color', 'rgb(244, 245, 251)');
+  await expect(page.locator('meta[name="theme-color"]')).toHaveAttribute('content', '#ffffff');
+  await expect(page.locator('html')).toHaveCSS('background-color', 'rgb(255, 255, 255)');
   await page.screenshot({ path: 'test-results/dashboard-light.png', fullPage: true });
   await page.getByRole('combobox', { name: 'Theme' }).click();
   await page.getByRole('option', { name: 'Dark', exact: true }).click();
-  await expect(page.locator('meta[name="theme-color"]')).toHaveAttribute('content', '#020617');
-  await expect(page.locator('html')).toHaveCSS('background-color', 'rgb(2, 6, 23)');
+  await expect(page.locator('meta[name="theme-color"]')).toHaveAttribute('content', '#0f172a');
+  await expect(page.locator('html')).toHaveCSS('background-color', 'rgb(15, 23, 42)');
   await expect(page.getByRole('button', { name: /sign out/i })).toHaveCSS('border-radius', '0px');
   await page.evaluate(() => document.fonts.ready);
   expect(await page.evaluate(() => document.fonts.check('14px "Roboto Flex Variable"'))).toBe(true);
