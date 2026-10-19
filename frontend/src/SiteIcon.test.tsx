@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import { cleanup, fireEvent, render } from '@testing-library/react';
-import { resetIconCache, SiteIcon } from './SiteIcon';
+import { forgetMissingIcons, resetIconCache, SiteIcon } from './SiteIcon';
 
 let stored: Map<string, string>;
 beforeEach(() => {
@@ -49,17 +49,22 @@ it('remembers the icon that loaded, so a remount skips the paths that failed', (
   expect(src(reloaded.container)).toBe('https://example.com/apple-touch-icon.png');
 });
 
-it('remembers a site with no icon for a day, then tries again', () => {
-  vi.useFakeTimers();
+it('keeps "no icon" for this session only and retries after a sign-in', () => {
   const first = render(<SiteIcon url="https://example.com/" name="Example" />);
   for (let index = 0; index < 4; index++) fireEvent.error(first.container.querySelector('img')!);
   first.unmount();
   const again = render(<SiteIcon url="https://example.com/" name="Example" />);
   expect(again.container.querySelector('img')).toBeNull();
   again.unmount();
-  vi.advanceTimersByTime(86_400_001);
-  const later = render(<SiteIcon url="https://example.com/" name="Example" />);
-  expect(src(later.container)).toBe('https://example.com/favicon.svg');
+  expect(stored.get('sitedock.icons') ?? '{}').toBe('{}');
+  forgetMissingIcons();
+  const retried = render(<SiteIcon url="https://example.com/" name="Example" />);
+  expect(src(retried.container)).toBe('https://example.com/favicon.svg');
+  retried.unmount();
+  stored.set('sitedock.icons', JSON.stringify({ 'https://example.com': { src: null, at: Date.now() } }));
+  resetIconCache();
+  const launched = render(<SiteIcon url="https://example.com/" name="Example" />);
+  expect(src(launched.container)).toBe('https://example.com/favicon.svg');
 });
 
 it('falls back through the other paths when a remembered icon stops loading', () => {

@@ -4,7 +4,7 @@ import { Icon } from './Icon';
 import { useTheme } from './useTheme';
 import { Dropdown } from './Dropdown';
 import { DeleteFavoriteDialog } from './DeleteFavoriteDialog';
-import { SiteIcon } from './SiteIcon';
+import { forgetMissingIcons, SiteIcon } from './SiteIcon';
 import { CreateGroupDialog } from './CreateGroupDialog';
 import { GroupHud } from './GroupHud';
 import { forgetOrphanedTokens, handleTokenRequest, originOf, parseTokenRequest, readToken, writeToken } from './tokens';
@@ -127,6 +127,7 @@ export function App() {
   // Safari blocks a first sign-in inside a frame. After the user signs in through Open tab,
   // reloading the frame on return picks up the new same-site cookie.
   const reloadOnReturn = useRef(new Set<string>());
+  const [iconRetry, setIconRetry] = useState(0);
   const openLink = useRef<HTMLAnchorElement>(null);
   const focusOpenLink = useRef(false);
   const hudReturn = useRef<HTMLElement | null>(null);
@@ -205,6 +206,8 @@ export function App() {
       const ids = reloadOnReturn.current;
       reloadOnReturn.current = new Set();
       setFrames(previous => previous.map(frame => ids.has(frame.id) ? { ...frame, version: frame.version + 1 } : frame));
+      forgetMissingIcons();
+      setIconRetry(value => value + 1);
     };
     window.addEventListener('focus', returned);
     document.addEventListener('visibilitychange', returned);
@@ -407,7 +410,7 @@ export function App() {
       <nav className="favorites-list" aria-label="Favorite websites">
         {visibleFavorites.map((favorite, index) => { const key = shortcutKey(index); return <div key={favorite.id} className={`favorite ${selected === favorite.id ? 'selected' : ''}`}>
           <div className="favorite-main">
-            <SiteIcon key={favorite.url} url={favorite.url} name={favorite.name} />
+            <SiteIcon key={`${favorite.url}:${iconRetry}`} url={favorite.url} name={favorite.name} />
             {key && <span className="shortcut-pill" aria-hidden="true">{key}</span>}
             {isExternal(favorite) ? <a ref={element => { if (element) favoriteControls.current.set(favorite.id, element); else favoriteControls.current.delete(favorite.id); }} className="favorite-select" aria-label={`Open ${favorite.name} in a separate tab`} aria-keyshortcuts={key ? `Alt+${key}` : undefined} title={key ? `${favorite.name} (Alt+${key})` : favorite.name} href={favorite.url} target="_blank" rel="noopener noreferrer" aria-current={selected === favorite.id ? 'page' : undefined} onClick={() => choose(favorite.id)}><span>{favorite.name}</span><small>Separate tab{key && <kbd>Alt+{key}</kbd>}</small></a> :
               <button ref={element => { if (element) favoriteControls.current.set(favorite.id, element); else favoriteControls.current.delete(favorite.id); }} className="favorite-select" aria-label={favorite.name} aria-keyshortcuts={key ? `Alt+${key}` : undefined} title={key ? `${favorite.name} (Alt+${key})` : favorite.name} aria-current={selected === favorite.id ? 'page' : undefined} onClick={() => choose(favorite.id)}><span>{favorite.name}</span><small>{new URL(favorite.url).hostname}{key && <kbd>Alt+{key}</kbd>}</small></button>}

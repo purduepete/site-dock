@@ -3,9 +3,9 @@ import { useState } from 'react';
 const iconPaths = ['/favicon.svg', '/favicon.ico', '/apple-touch-icon.png', '/icons/icon-192.png'];
 const storeKey = 'sitedock.icons';
 const day = 86_400_000;
-// A found icon is trusted for a week; "no icon" is retried after a day in case the site adds one.
+// A found icon is trusted for a week. "No icon" is kept in memory only: before a Cloudflare Access
+// sign-in every icon request fails, so saving that result would hide icons after sign-in.
 const foundFor = 7 * day;
-const missingFor = day;
 
 type Entry = { src: string | null; at: number };
 let entries: Record<string, Entry> | null = null;
@@ -19,6 +19,7 @@ function cache(): Record<string, Entry> {
     const parsed: unknown = JSON.parse(localStorage.getItem(storeKey) ?? '{}');
     entries = parsed && typeof parsed === 'object' && !Array.isArray(parsed) ? parsed as Record<string, Entry> : {};
   } catch { entries = {}; }
+  for (const origin of Object.keys(entries)) if (entries[origin]?.src === null) delete entries[origin];
   return entries;
 }
 
@@ -26,7 +27,8 @@ function known(origin: string): string | null | undefined {
   const entry = cache()[origin];
   if (!entry || typeof entry.at !== 'number' || (entry.src !== null && typeof entry.src !== 'string')) return undefined;
   if (entry.src !== null && !entry.src.startsWith(`${origin}/`)) return undefined;
-  return Date.now() - entry.at < (entry.src ? foundFor : missingFor) ? entry.src : undefined;
+  if (entry.src === null) return null;
+  return Date.now() - entry.at < foundFor ? entry.src : undefined;
 }
 
 function keep(src: string) {
@@ -40,7 +42,14 @@ function keep(src: string) {
 function remember(origin: string, src: string | null) {
   const all = cache();
   all[origin] = { src, at: Date.now() };
-  try { localStorage.setItem(storeKey, JSON.stringify(all)); } catch { /* the in-memory copy still applies */ }
+  const found = Object.fromEntries(Object.entries(all).filter(([, entry]) => entry.src !== null));
+  try { localStorage.setItem(storeKey, JSON.stringify(found)); } catch { /* the in-memory copy still applies */ }
+}
+
+// Lets icons that failed before a sign-in try again.
+export function forgetMissingIcons() {
+  const all = cache();
+  for (const origin of Object.keys(all)) if (all[origin].src === null) delete all[origin];
 }
 
 type Candidates = { origin: string; sources: string[] };
