@@ -82,8 +82,8 @@ function FavoriteForm({ favorite, groups, draft, committed, busy, blocked, allow
         {overfilled.length > 0 && <p className="error">{overfilled.join(', ')} already {overfilled.length === 1 ? 'has' : 'have'} {GROUP_LIMIT} sites. Clear {overfilled.length === 1 ? 'it' : 'them'} to save.</p>}
         {!groups.length && !selectedGroups.length && <p className="muted">Create groups from the sidebar dropdown first.</p>}
       </fieldset>
-      <div className="dropdown-field"><span>Open preference</span><Dropdown label="Open preference" value={mode} onChange={setMode} options={[{ value: 'embed', label: 'Inside SiteDock' }, { value: 'external', label: 'Separate tab' }]} /></div>
-      <p className="muted">Some sites block embedding or require a separate tab for sign-in. HTTP sites always open separately when SiteDock uses HTTPS.</p>
+      <div className="dropdown-field"><span>Open preference</span><Dropdown label="Open preference" value={mode} onChange={setMode} options={[{ value: 'embed', label: 'Inside Site Dock' }, { value: 'external', label: 'Separate tab' }]} /></div>
+      <p className="muted">Some sites block embedding or require a separate tab for sign-in. HTTP sites always open separately when Site Dock uses HTTPS.</p>
       {hasToken && tokenOrigin && <div className="saved-token"><span className="muted">This browser keeps a sign-in token for {tokenOrigin}.</span><button type="button" disabled={busy} onClick={() => { if (writeToken(tokenOrigin, null)) setHasToken(false); }}>Forget saved sign-in</button></div>}
       {error && <p role="alert" className="error">{error}</p>}
       <div className="button-row"><button type="submit" className="primary" disabled={busy || blocked}>{busy ? 'Saving…' : 'Save favorite'}</button><button type="button" onClick={onClose} disabled={busy}>Close editor</button></div>
@@ -355,7 +355,7 @@ export function App() {
   const themeControl = <div className="theme-control"><span>Theme</span><Dropdown<Theme> label="Theme" value={theme} onChange={setTheme} options={[{ value: 'system', label: 'System' }, { value: 'dark', label: 'Dark' }, { value: 'light', label: 'Light' }]} /></div>;
 
   if (!session?.authenticated) return <div className="login-page">
-    <header className="login-header"><span className="wordmark"><span className="brand-mark"><img className="brand-icon" src="/favicon.svg" alt="" /></span>SiteDock</span>{themeControl}</header>
+    <header className="login-header"><span className="wordmark"><span className="brand-mark"><img className="brand-icon" src="/favicon.svg" alt="" /></span>Site Dock</span>{themeControl}</header>
     <main className="login-card"><p className="eyebrow">YOUR SITES, ONE PLACE</p><h1>Your everyday dock.</h1><p className="muted">Sign in to your shared favorites. Your sites keep their own accounts and sign-ins.</p>
       {error && <div role="alert" className="error">{error}</div>}
       {session === null ? <><p role="status">Checking your session…</p>{error && <button onClick={() => void checkSession()}>Retry connection</button>}</> :
@@ -366,7 +366,7 @@ export function App() {
         }} />}
       {error.includes('server sign-out') && <button onClick={() => void logout()}>Retry sign-out</button>}
       <p className="login-note">Private access · Favorites shared across devices</p>
-    </main><footer className="login-footer">Signing out of SiteDock leaves source-site sign-ins unchanged. Sites are not cached for offline use.</footer>
+    </main><footer className="login-footer">Signing out of Site Dock leaves source-site sign-ins unchanged. Sites are not cached for offline use.</footer>
   </div>;
 
   return <div className={`app ${resizing ? 'interacting' : ''} ${minimized ? 'sidebar-minimized' : ''}`} style={{ '--sidebar-width': `${width}px` } as CSSProperties}>
@@ -396,7 +396,7 @@ export function App() {
       <div className="sidebar-brand"><span className="wordmark"><span className="brand-mark mobile-only"><img className="brand-icon" src="/favicon.svg" alt="" /></span><button type="button" className="brand-mark brand-toggle desktop-only" aria-label={minimized ? 'Expand favorites' : 'Minimize favorites'} title={minimized ? 'Expand sidebar' : 'Minimize sidebar'} aria-controls="favorites-sidebar" aria-expanded={!minimized} onClick={() => {
         const next = !minimized;
         setMinimized(next); setResizing(false); savePreference('sidebar-minimized', String(next));
-      }}><img className="brand-icon" src="/favicon.svg" alt="" /></button>SiteDock</span><button className="mobile-only" aria-label="Close favorites" onClick={() => setSidebar(false)}><Icon name="close" /></button></div>
+      }}><img className="brand-icon" src="/favicon.svg" alt="" /></button>Site Dock</span><button className="mobile-only" aria-label="Close favorites" onClick={() => setSidebar(false)}><Icon name="close" /></button></div>
       <div className="section-heading list-heading"><span className="eyebrow">FAVORITES <span className="count">{visibleFavorites.length}</span></span><button aria-label="Add favorite" disabled={!store || busy} onClick={() => { setEditor({ id: crypto.randomUUID(), name: '', url: '', mode: 'embed', ...(groupFilter.startsWith('group:') && visibleFavorites.length < GROUP_LIMIT ? { groups: [groupFilter.slice(6)] } : {}) }); setSidebar(false); }}><Icon name="plus" /></button></div>
       <div className="group-filter" title="Switch group (Alt+G)"><Dropdown label="Group" value={groupFilter} options={[
         { value: 'all', label: 'All sites' },
@@ -425,7 +425,7 @@ export function App() {
         </div>; })}
         {store && !visibleFavorites.length && <p className="sidebar-empty">{groupFilter === 'all' ? 'Add your first favorite to get started.' : 'No sites in this group. Add a favorite or edit a site in All sites to assign it here.'}</p>}
       </nav>
-      <footer className="sidebar-footer">{themeControl}<div className="account"><span><small>{session.gatewayAuthenticated ? 'Access protected' : 'Signed in as'}</small>{session.gatewayAuthenticated ? 'Gateway' : session.username ?? 'Owner'}</span>{!session.gatewayAuthenticated && <button aria-label="Sign out" title="Sign out of SiteDock" onClick={() => void logout()}><Icon name="logout" /></button>}</div></footer>
+      <footer className="sidebar-footer">{themeControl}<div className="account"><span><small>{session.gatewayAuthenticated ? 'Access protected' : 'Signed in as'}</small>{session.gatewayAuthenticated ? 'Gateway' : session.username ?? 'Owner'}</span>{!session.gatewayAuthenticated && <button aria-label="Sign out" title="Sign out of Site Dock" onClick={() => void logout()}><Icon name="logout" /></button>}</div></footer>
     </aside>
     <div role="separator" aria-label="Sidebar width" aria-orientation="vertical" aria-valuemin={220} aria-valuemax={480} aria-valuenow={width} tabIndex={0} className="resize-handle"
       onKeyDown={event => { if (['ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(event.key)) { event.preventDefault(); setWidth(value => event.key === 'Home' ? 220 : event.key === 'End' ? 480 : clampWidth(value + (event.key === 'ArrowRight' ? 10 : -10))); } }}

@@ -16,7 +16,7 @@ export function validateUrl(value: string, ownOrigins: string[] = [location.orig
   try { url = new URL(value.trim()); } catch { throw new Error('Enter a complete http:// or https:// address.'); }
   if (!['http:', 'https:'].includes(url.protocol)) throw new Error('Only HTTP and HTTPS addresses are supported.');
   if (url.username || url.password) throw new Error('Addresses cannot include a username or password.');
-  if (ownOrigins.includes(url.origin)) throw new Error('SiteDock cannot be added to its own favorites.');
+  if (ownOrigins.includes(url.origin)) throw new Error('Site Dock cannot be added to its own favorites.');
   return url.href;
 }
 

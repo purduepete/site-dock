@@ -480,7 +480,7 @@ describe('favorite edits and reconciliation', () => {
     await userEvent.clear(screen.getByLabelText('Website address'));
     await userEvent.type(screen.getByLabelText('Website address'), 'https://dock.example.com/path');
     await userEvent.click(screen.getByRole('button', { name: 'Save favorite' }));
-    await screen.findByText('SiteDock cannot be added to its own favorites.');
+    await screen.findByText('Site Dock cannot be added to its own favorites.');
     expect(requests.some(request => request.body?.favorites)).toBe(false);
   });
   it('saves keyboard reorder intent with the full list', async () => {

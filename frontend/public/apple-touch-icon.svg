@@ -1,6 +1,6 @@
 <!-- Source for apple-touch-icon.png. Full bleed on purpose: iOS applies its own rounded mask, and
      favicon.svg's inset card would leave light wedges under it. Re-render at 180x180 after editing. -->
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="180" height="180" role="img" aria-label="SiteDock">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="180" height="180" role="img" aria-label="Site Dock">
   <rect width="64" height="64" fill="#0f172a" />
   <rect x="14" y="16" width="36" height="32" rx="4" fill="none" stroke="#6b8cae" stroke-width="3" />
   <line x1="25" y1="16" x2="25" y2="48" stroke="#6b8cae" stroke-width="3" />
