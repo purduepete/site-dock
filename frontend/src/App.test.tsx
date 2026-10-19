@@ -334,6 +334,19 @@ describe('dashboard sessions and embedded pages', () => {
     expect(activate).toHaveBeenCalledOnce();
     await waitFor(() => expect(document.activeElement?.textContent).toBe('Open News'));
   });
+  it('reloads an embedded frame when the user returns from Open tab', async () => {
+    await ready();
+    const before = screen.getByTitle('Example');
+    const link = screen.getByRole('link', { name: 'Open Example in a new tab' });
+    link.addEventListener('click', event => event.preventDefault());
+    fireEvent.click(link);
+    expect(screen.getByTitle('Example')).toBe(before);
+    fireEvent(window, new Event('focus'));
+    await waitFor(() => expect(screen.getByTitle('Example')).not.toBe(before));
+    const reloaded = screen.getByTitle('Example');
+    fireEvent(window, new Event('focus'));
+    expect(screen.getByTitle('Example')).toBe(reloaded);
+  });
   it('retains visited frames and reloads only the selected frame from its configured URL', async () => {
     await ready();
     const first = screen.getByTitle('Example');

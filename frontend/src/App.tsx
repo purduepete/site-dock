@@ -124,6 +124,9 @@ export function App() {
   const resizeOrigin = useRef({ x: 0, width: 280 });
   const favoriteControls = useRef(new Map<string, HTMLButtonElement | HTMLAnchorElement>());
   const frameElements = useRef(new Map<string, HTMLIFrameElement>());
+  // Safari blocks a first sign-in inside a frame. After the user signs in through Open tab,
+  // reloading the frame on return picks up the new same-site cookie.
+  const reloadOnReturn = useRef(new Set<string>());
   const openLink = useRef<HTMLAnchorElement>(null);
   const focusOpenLink = useRef(false);
   const hudReturn = useRef<HTMLElement | null>(null);
@@ -195,6 +198,18 @@ export function App() {
     window.addEventListener('message', tokenMessage);
     return () => { window.removeEventListener('keydown', shortcut); window.removeEventListener('message', forwarded); window.removeEventListener('message', tokenMessage); };
   }, [session?.authenticated]);
+
+  useEffect(() => {
+    const returned = () => {
+      if (document.visibilityState === 'hidden' || reloadOnReturn.current.size === 0) return;
+      const ids = reloadOnReturn.current;
+      reloadOnReturn.current = new Set();
+      setFrames(previous => previous.map(frame => ids.has(frame.id) ? { ...frame, version: frame.version + 1 } : frame));
+    };
+    window.addEventListener('focus', returned);
+    document.addEventListener('visibilitychange', returned);
+    return () => { window.removeEventListener('focus', returned); document.removeEventListener('visibilitychange', returned); };
+  }, []);
 
   useEffect(() => {
     if (!focusOpenLink.current || !current || !isExternal(current)) return;
@@ -417,7 +432,7 @@ export function App() {
     <main className="workspace">
       <header className="workspace-header"><button className="mobile-only" aria-label="Show favorites" aria-controls="favorites-sidebar" aria-expanded={sidebar} onClick={() => setSidebar(true)}><Icon name="menu" /></button>
         <div className="site-title"><h1>{current?.name ?? 'Your workspace'}</h1></div>
-        <div className="toolbar">{current && <><button disabled={isExternal(current)} aria-label="Reload selected site" title="Reload from the saved address" onClick={() => setFrames(previous => previous.map(frame => frame.id === selected ? { ...frame, version: frame.version + 1 } : frame))}><Icon name="reload" /><span className="toolbar-label">Reload</span></button><a className="button" href={current.url} target="_blank" rel="noopener noreferrer" aria-label={`Open ${current.name} in a new tab`}><Icon name="external" /><span className="toolbar-label">Open tab</span></a></>}</div>
+        <div className="toolbar">{current && <><button disabled={isExternal(current)} aria-label="Reload selected site" title="Reload from the saved address" onClick={() => setFrames(previous => previous.map(frame => frame.id === selected ? { ...frame, version: frame.version + 1 } : frame))}><Icon name="reload" /><span className="toolbar-label">Reload</span></button><a className="button" href={current.url} target="_blank" rel="noopener noreferrer" aria-label={`Open ${current.name} in a new tab`} onClick={() => { if (!isExternal(current)) reloadOnReturn.current.add(current.id); }}><Icon name="external" /><span className="toolbar-label">Open tab</span></a></>}</div>
       </header>
       <div className="notices">
         {error && <p role="alert" className="error">{error}</p>}
@@ -452,7 +467,7 @@ export function App() {
         {current && isExternal(current) && <section className="empty-state"><div className="state-icon"><Icon name="external" /></div><p className="eyebrow">SEPARATE TAB</p><h2>{current.name}</h2><p>{current.mode === 'embed' ? 'This site uses HTTP. Your HTTPS connection prevents it from being embedded here.' : 'This favorite is set to open in a separate browser tab.'}</p><a ref={openLink} className="button primary" href={current.url} target="_blank" rel="noopener noreferrer"><Icon name="external" />Open {current.name}</a><p className="muted">Your browser may require a separate sign-in.</p></section>}
         {!current && store && <section className="empty-state"><div className="state-icon"><Icon name="plus" /></div><p className="eyebrow">MAKE ROOM FOR YOUR ROUTINE</p><h2>Your sites start here.</h2><p>Add a favorite, then keep your everyday sites close at hand.</p><button className="primary" onClick={() => setEditor({ id: crypto.randomUUID(), name: '', url: '', mode: 'embed' })}><Icon name="plus" />Add favorite</button></section>}
       </div>
-      {current && !isExternal(current) && <footer className="frame-note">Site blank or sign-in blocked? Use <a href={current.url} target="_blank" rel="noopener noreferrer">Open tab</a>. Reload returns to the saved address. Hidden sites may keep running.</footer>}
+      {current && !isExternal(current) && <footer className="frame-note">Blank on iPad or Safari? Use <a href={current.url} target="_blank" rel="noopener noreferrer" onClick={() => reloadOnReturn.current.add(current.id)}>Open tab</a> once to sign in. The site loads here after you return. Hidden sites may keep running.</footer>}
       <span className="sr-only" role="status" aria-live="polite">{announcement}</span>
     </main>
   </div>;
