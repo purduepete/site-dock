@@ -1,7 +1,7 @@
 import React from 'react';
 import { createRoot } from 'react-dom/client';
 import { App } from './App';
-import '@fontsource-variable/roboto-flex';
+import '@fontsource-variable/roboto-flex/opsz.css';
 import './styles.css';
 
 createRoot(document.getElementById('root')!).render(

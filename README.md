@@ -309,3 +309,8 @@ Stop-Process -Id $serverPid
 ```
 
 Verify that the PID has exited before removing its stale `data\server.lock`. Then `npm start` can restart the server. Removing the Tailscale route is a separate operation; stopping Node does not remove it.
+## Theme preferences
+
+Theme settings offer System, Light and Midnight. Midnight is the default. System follows OS changes live.
+The `sitedock.theme` storage key accepts `system`, `light` and `midnight`; legacy `dark` values migrate to Midnight.
+The self-hosted font keeps Fontsource's `Roboto Flex Variable` family name.

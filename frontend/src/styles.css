@@ -1,13 +1,13 @@
 @charset "UTF-8";
-:root { font-family: "Roboto Flex Variable", "Roboto Flex", ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Arial, sans-serif; color-scheme: dark; --bg: #020617; --panel: #0f172a; --raised: #172033; --border: #293548; --text: #f8fafc; --muted: #a8b4c6; --accent: #6b8cae; --selected: #1b2a3f; --primary: #6b8cae; --primary-hover: #86a1bd; --on-primary: #0f172a; --error-bg: #351e29; --error: #ffb6c7; --scrollbar-track: #080f20; --scrollbar-thumb: #3b4962; --scrollbar-thumb-hover: #64748b; color: var(--text); background: var(--bg); font-synthesis: none; }
-:root[data-theme="light"] { color-scheme: light; --bg: #f4f5fb; --panel: #fff; --raised: #f0f1f8; --border: #e2e4f0; --text: #1a1b2e; --muted: #5a5c74; --accent: #2f477b; --selected: #e8edf3; --primary: #2f477b; --primary-hover: #3d5a96; --on-primary: #f8fafc; --error-bg: #fff0f3; --error: #a51d43; --scrollbar-track: #eef0f3; --scrollbar-thumb: #9ca3af; --scrollbar-thumb-hover: #64748b; }
+:root { font-family: "Roboto Flex Variable", "Roboto Flex", ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", "Helvetica Neue", Arial, "Noto Sans", sans-serif; color-scheme: dark; --bg: #020617; --panel: #0f172a; --raised: #1e293b; --border: #293548; --text: #f8fafc; --muted: #a8b4c6; --accent: #6b8cae; --selected: #1b2a3f; --primary: #6b8cae; --primary-hover: #86a1bd; --on-primary: #0f172a; --error-bg: #351e29; --error: #ffb6c7; --scrollbar-track: #080f20; --scrollbar-thumb: #3b4962; --scrollbar-thumb-hover: #64748b; color: var(--text); background: var(--bg); font-synthesis: none; }
+:root[data-theme="light"] { color-scheme: light; --bg: #ffffff; --panel: #fff; --raised: #f0f1f8; --border: #e2e4f0; --text: #1a1b2e; --muted: #5a5c74; --accent: #2f477b; --selected: #e8edf3; --primary: #2f477b; --primary-hover: #3d5a96; --on-primary: #f8fafc; --error-bg: #fff0f3; --error: #a51d43; --scrollbar-track: #eef0f3; --scrollbar-thumb: #9ca3af; --scrollbar-thumb-hover: #64748b; }
 * { box-sizing: border-box; scrollbar-width: thin; scrollbar-color: var(--scrollbar-thumb) var(--scrollbar-track); }
 *::-webkit-scrollbar { width: 8px; height: 8px; }
 *::-webkit-scrollbar-track, *::-webkit-scrollbar-corner { background: var(--scrollbar-track); }
 *::-webkit-scrollbar-thumb { min-height: 32px; border: 2px solid var(--scrollbar-track); border-radius: 0; background: var(--scrollbar-thumb); }
 *::-webkit-scrollbar-thumb:hover { background: var(--scrollbar-thumb-hover); }
-body { margin: 0; }
-button, input, select { font: inherit; }
+body { margin: 0; font-weight: 400; -webkit-font-smoothing: antialiased; }
+button, input, select, textarea { font: inherit; }
 button, .button { display: inline-flex; align-items: center; justify-content: center; gap: 8px; min-height: 36px; padding: 7px 11px; border: 1px solid var(--border); border-radius: 0; background: var(--raised); color: var(--text); cursor: pointer; text-decoration: none; font-size: 13px; line-height: 1.35; }
 button:hover, .button:hover { background: var(--selected); border-color: var(--accent); }
 button:disabled { opacity: .42; cursor: default; }

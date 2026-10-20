@@ -352,7 +352,7 @@ export function App() {
   }} discard={() => {
     setStore(conflict); setDraft(conflict.favorites); setGroups(conflict.groups ?? []); setPending(false); setConflict(null); setError('Latest list loaded. Unsaved form input is still available.');
   }} />;
-  const themeControl = <div className="theme-control"><span>Theme</span><Dropdown<Theme> label="Theme" value={theme} onChange={setTheme} options={[{ value: 'system', label: 'System' }, { value: 'dark', label: 'Dark' }, { value: 'light', label: 'Light' }]} /></div>;
+  const themeControl = <div className="theme-control"><span>Theme</span><Dropdown<Theme> label="Theme" value={theme} onChange={setTheme} options={[{ value: 'system', label: 'System' }, { value: 'light', label: 'Light' }, { value: 'midnight', label: 'Midnight' }]} /></div>;
 
   if (!session?.authenticated) return <div className="login-page">
     <header className="login-header"><span className="wordmark"><span className="brand-mark"><img className="brand-icon" src="/favicon.svg" alt="" /></span>Site Dock</span>{themeControl}</header>
