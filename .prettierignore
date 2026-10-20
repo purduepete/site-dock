@@ -1,0 +1,10 @@
+node_modules/
+dist/
+frontend/dist/
+data/
+.run/
+coverage/
+test-results/
+playwright-report/
+package-lock.json
+*.min.*
