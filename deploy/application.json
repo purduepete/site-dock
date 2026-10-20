@@ -3,9 +3,13 @@
   "id": "site-dock",
   "repository": "https://github.com/purduepete/site-dock.git",
   "database": {
-    "engine": "postgresql", "name": "site_dock",
-    "connectionEnvironment": "DATABASE_URL", "backendEnvironment": "STORAGE_BACKEND",
-    "schemaVersion": 1, "migrationsDirectory": "deploy\\postgresql", "backupFormat": "custom"
+    "engine": "postgresql",
+    "name": "site_dock",
+    "connectionEnvironment": "DATABASE_URL",
+    "backendEnvironment": "STORAGE_BACKEND",
+    "schemaVersion": 1,
+    "migrationsDirectory": "deploy\\postgresql",
+    "backupFormat": "custom"
   },
   "runtime": { "kind": "node", "minimumVersion": "22.12.0" },
   "build": {
@@ -33,9 +37,19 @@
   "managedState": [],
   "state": [
     { "source": "data\\favorites.json", "target": "backups\\source\\favorites.json", "kind": "file", "required": true },
-    { "source": "data\\favorites.json.bak", "target": "backups\\source\\favorites.json.bak", "kind": "file", "required": false },
+    {
+      "source": "data\\favorites.json.bak",
+      "target": "backups\\source\\favorites.json.bak",
+      "kind": "file",
+      "required": false
+    },
     { "source": "data\\owner.json", "target": "backups\\source\\owner.json", "kind": "secret", "required": true },
-    { "source": "data\\owner.json.bak", "target": "backups\\source\\owner.json.bak", "kind": "secret", "required": false },
+    {
+      "source": "data\\owner.json.bak",
+      "target": "backups\\source\\owner.json.bak",
+      "kind": "secret",
+      "required": false
+    },
     { "source": ".env", "target": "secrets\\source\\app.env", "kind": "secret", "required": true },
     { "source": "data\\server.log", "target": "logs\\legacy-server.log", "kind": "file", "required": false },
     { "source": "data\\server.err.log", "target": "logs\\legacy-server.err.log", "kind": "file", "required": false },
@@ -45,11 +59,36 @@
     { "source": "data\\server.log.3", "target": "logs\\legacy-server.log.3", "kind": "file", "required": false },
     { "source": "data\\server.log.4", "target": "logs\\legacy-server.log.4", "kind": "file", "required": false },
     { "source": "data\\server.log.5", "target": "logs\\legacy-server.log.5", "kind": "file", "required": false },
-    { "source": "data\\server.err.log.1", "target": "logs\\legacy-server.err.log.1", "kind": "file", "required": false },
-    { "source": "data\\server.err.log.2", "target": "logs\\legacy-server.err.log.2", "kind": "file", "required": false },
-    { "source": "data\\server.err.log.3", "target": "logs\\legacy-server.err.log.3", "kind": "file", "required": false },
-    { "source": "data\\server.err.log.4", "target": "logs\\legacy-server.err.log.4", "kind": "file", "required": false },
-    { "source": "data\\server.err.log.5", "target": "logs\\legacy-server.err.log.5", "kind": "file", "required": false },
+    {
+      "source": "data\\server.err.log.1",
+      "target": "logs\\legacy-server.err.log.1",
+      "kind": "file",
+      "required": false
+    },
+    {
+      "source": "data\\server.err.log.2",
+      "target": "logs\\legacy-server.err.log.2",
+      "kind": "file",
+      "required": false
+    },
+    {
+      "source": "data\\server.err.log.3",
+      "target": "logs\\legacy-server.err.log.3",
+      "kind": "file",
+      "required": false
+    },
+    {
+      "source": "data\\server.err.log.4",
+      "target": "logs\\legacy-server.err.log.4",
+      "kind": "file",
+      "required": false
+    },
+    {
+      "source": "data\\server.err.log.5",
+      "target": "logs\\legacy-server.err.log.5",
+      "kind": "file",
+      "required": false
+    },
     { "source": "data\\startup.log.1", "target": "logs\\legacy-startup.log.1", "kind": "file", "required": false }
   ],
   "routes": [{ "hostname": "site-dock.jimlertech.com" }],

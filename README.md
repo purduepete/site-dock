@@ -21,8 +21,7 @@ origins `https://site-dock.jimlertech.com` and
 returning `ok: true`.
 
 The 2026-10-17 hosting audit (3:16 PM local) confirms the exact `SiteDock` task
-name, `C:\Files\Dev\main\site-dock` task working directory, and loopback port
-8790. Both build commands run at the staged release root
+name, `C:\Files\Dev\main\site-dock` task working directory, and loopback port 8790. Both build commands run at the staged release root
 (`workingDirectory: "."`). TypeScript's root is the repository, so the server
 build writes `dist\server\main.js`; Vite writes `frontend\dist`.
 Committed `.env.example` and `.env.development` contain nonsecret defaults, while
@@ -99,12 +98,12 @@ pwsh -NoProfile -File scripts\install.ps1
 
 It checks Node and Tailscale, then refuses to continue if Tailscale HTTPS 443 already routes to another app. Use `-HttpsPort 9443` in that case. It imports `sitedock-favorites.json` and `sitedock-owner.json` from Downloads (sent with `tailscale file cp`) without overwriting existing data, and writes `.env` with this machine's Tailscale origin. It then runs `npm ci` and the build, and registers a `SiteDock` logon task with a repeating 1-minute health check. The task runs `scripts\start-hidden.ps1`, which starts node with no console window and clears a `server.lock` left by a reboot or crash. The installer starts the task, waits for `/api/health`, and adds the Tailscale HTTPS route. Re-running it is safe.
 
-| Action | Command |
-|---|---|
-| Update | `npm run update` (pull fast-forward, build, restart; refuses local changes) |
-| Stop | `pwsh -File scripts\stop.ps1` |
-| Start | `Enable-ScheduledTask -TaskName SiteDock; Start-ScheduledTask -TaskName SiteDock` |
-| Status | `Invoke-RestMethod http://127.0.0.1:8790/api/health` |
+| Action | Command                                                                           |
+| ------ | --------------------------------------------------------------------------------- |
+| Update | `npm run update` (pull fast-forward, build, restart; refuses local changes)       |
+| Stop   | `pwsh -File scripts\stop.ps1`                                                     |
+| Start  | `Enable-ScheduledTask -TaskName SiteDock; Start-ScheduledTask -TaskName SiteDock` |
+| Status | `Invoke-RestMethod http://127.0.0.1:8790/api/health`                              |
 
 The launcher requires a live SiteDock process, a successful `/api/health` response, and ownership of the configured listening port before reporting success. Each invocation tries up to 3 launches with a 15-second health window and 3-second pauses. Failures return a nonzero task result. Task Scheduler retries failures up to 3 times at 1-minute intervals; the repeating health trigger also recovers later crashes or an unhealthy server. A healthy process keeps its PID and logs. Recovery checks a live server twice before stopping it. Overlapping launches are serialized, and previous logs are preserved before each attempt.
 
@@ -204,18 +203,20 @@ Do not use `tailscale serve reset` if the node has other routes.
 - Alt+G opens the group switcher. Type to filter, use the Up and Down arrows or press Alt+G again to move to the next group, then press Enter or click to switch. Each group shows its site count across all favorites. Escape or a click outside closes it and returns focus to where you were.
 - Keys pressed inside an embedded site go to that site, not SiteDock. For apps you control, add the key forwarder so Alt+0..9 and Alt+G work while the app has focus:
 
-  ```html
-  <script src="https://<your-sitedock-host>/sitedock-keys.js"></script>
-  ```
+    ```html
+    <script src="https://<your-sitedock-host>/sitedock-keys.js"></script>
+    ```
 
-  The script only runs when the page is framed. It ignores keys typed in text fields and posts to the exact SiteDock origin it was loaded from (or the `data-sitedock-origin` attribute when you inline it), never to `*`. SiteDock accepts a forwarded key only from the active frame's window and only when the message origin matches that favorite's saved origin. If the app's Content-Security-Policy blocks the script, add the SiteDock origin to its `script-src` or inline the file with `data-sitedock-origin` set. Sites you don't control (news sites, for example) and nested frames inside an embedded app can't forward keys. A forwarded key that selects a separate-tab favorite may have its new tab blocked, because browser user activation does not cross frames; SiteDock then focuses the Open button so Enter opens it.
+    The script only runs when the page is framed. It ignores keys typed in text fields and posts to the exact SiteDock origin it was loaded from (or the `data-sitedock-origin` attribute when you inline it), never to `*`. SiteDock accepts a forwarded key only from the active frame's window and only when the message origin matches that favorite's saved origin. If the app's Content-Security-Policy blocks the script, add the SiteDock origin to its `script-src` or inline the file with `data-sitedock-origin` set. Sites you don't control (news sites, for example) and nested frames inside an embedded app can't forward keys. A forwarded key that selects a separate-tab favorite may have its new tab blocked, because browser user activation does not cross frames; SiteDock then focuses the Open button so Enter opens it.
+
 - Safari on iPad and iPhone erases a cross-site embedded page's localStorage when Safari or the home-screen app closes, so apps that keep a sign-in token there ask for it again. Apps you control can hand their token to SiteDock and get it back on the next load. Use `sitedock-token.js` (it exposes `SiteDockToken.get()`, `.save(token)`, and `.clear()`, each returning a promise) or bundle an equivalent helper, as FitTrack does:
 
-  ```html
-  <script src="https://<your-sitedock-host>/sitedock-token.js"></script>
-  ```
+    ```html
+    <script src="https://<your-sitedock-host>/sitedock-token.js"></script>
+    ```
 
-  SiteDock stores the token in its own localStorage on that device, keyed by the frame's origin. It never sends tokens to the SiteDock server, so each device signs in to each app once. SiteDock answers only frames it mounted for an embedded favorite, only when the message comes from that frame's window with the favorite's saved origin, and only while you're signed in to SiteDock. Replies go to that exact origin. Pages on SiteDock's own origin are refused. Edit a favorite and choose Forget saved sign-in to remove its stored token. When you delete a favorite or move it to another origin from this browser, SiteDock drops the token once no favorite uses that origin. Signing out of SiteDock keeps saved tokens on the device.
+    SiteDock stores the token in its own localStorage on that device, keyed by the frame's origin. It never sends tokens to the SiteDock server, so each device signs in to each app once. SiteDock answers only frames it mounted for an embedded favorite, only when the message comes from that frame's window with the favorite's saved origin, and only while you're signed in to SiteDock. Replies go to that exact origin. Pages on SiteDock's own origin are refused. Edit a favorite and choose Forget saved sign-in to remove its stored token. When you delete a favorite or move it to another origin from this browser, SiteDock drops the token once no favorite uses that origin. Signing out of SiteDock keeps saved tokens on the device.
+
 - Theme and display preferences use custom button/listbox dropdowns. Primary actions use flat colors.
 - Deletion requires confirmation in a styled modal; Cancel and Escape leave the favorite unchanged.
 - A compact 44px desktop toolbar gives the embedded page the remaining space. Phone controls retain 44px touch targets.
@@ -309,6 +310,7 @@ Stop-Process -Id $serverPid
 ```
 
 Verify that the PID has exited before removing its stale `data\server.lock`. Then `npm start` can restart the server. Removing the Tailscale route is a separate operation; stopping Node does not remove it.
+
 ## Theme preferences
 
 Theme settings offer System, Light and Midnight. Midnight is the default. System follows OS changes live.

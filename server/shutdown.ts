@@ -2,48 +2,50 @@ import { existsSync } from 'node:fs';
 import type { Server } from 'node:http';
 
 export async function stopServer(
-  server: Pick<Server, 'close' | 'closeIdleConnections'>,
-  drain: () => Promise<void>,
-  release: () => Promise<void>,
+    server: Pick<Server, 'close' | 'closeIdleConnections'>,
+    drain: () => Promise<void>,
+    release: () => Promise<void>
 ): Promise<void> {
-  await new Promise<void>((resolve, reject) => {
-    server.close(error => error ? reject(error) : resolve());
-    server.closeIdleConnections();
-  });
-  await drain();
-  await release();
+    await new Promise<void>((resolve, reject) => {
+        server.close((error) => (error ? reject(error) : resolve()));
+        server.closeIdleConnections();
+    });
+    await drain();
+    await release();
 }
 
 export function installShutdown(
-  shutdown: () => Promise<void>,
-  stopFile = process.env.SOLUTIONDEPLOY_STOP_FILE,
-  exists: (path: string) => boolean = existsSync,
+    shutdown: () => Promise<void>,
+    stopFile = process.env.SOLUTIONDEPLOY_STOP_FILE,
+    exists: (path: string) => boolean = existsSync
 ) {
-  let completion: Promise<void> | undefined;
-  let timer: NodeJS.Timeout | undefined;
-  const stop = () => {
-    if (!completion) {
-      completion = Promise.resolve().then(shutdown);
-      if (timer) clearInterval(timer);
-      const cleanup = () => {
-        process.off('SIGINT', request);
-        process.off('SIGTERM', request);
-      };
-      void completion.then(cleanup, cleanup);
+    let completion: Promise<void> | undefined;
+    let timer: NodeJS.Timeout | undefined;
+    const stop = () => {
+        if (!completion) {
+            completion = Promise.resolve().then(shutdown);
+            if (timer) clearInterval(timer);
+            const cleanup = () => {
+                process.off('SIGINT', request);
+                process.off('SIGTERM', request);
+            };
+            void completion.then(cleanup, cleanup);
+        }
+        return completion;
+    };
+    const request = () => {
+        void stop().catch((error: unknown) => {
+            console.error('Graceful shutdown failed:', error);
+            process.exitCode = 1;
+        });
+    };
+    process.on('SIGINT', request);
+    process.on('SIGTERM', request);
+    if (stopFile) {
+        timer = setInterval(() => {
+            if (exists(stopFile)) request();
+        }, 250);
+        timer.unref();
     }
-    return completion;
-  };
-  const request = () => {
-    void stop().catch((error: unknown) => {
-      console.error('Graceful shutdown failed:', error);
-      process.exitCode = 1;
-    });
-  };
-  process.on('SIGINT', request);
-  process.on('SIGTERM', request);
-  if (stopFile) {
-    timer = setInterval(() => { if (exists(stopFile)) request(); }, 250);
-    timer.unref();
-  }
-  return stop;
+    return stop;
 }

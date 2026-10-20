@@ -55,23 +55,24 @@ Query-free loopback URLs retain existing behavior.
 4. Build the release. Set `DATABASE_URL` through the private operator environment.
    Run from the release root only after approval:
 
-   ```powershell
-   node deploy\postgresql\import.mjs `
-     --source-dir C:\Protected\snapshot `
-     --expected-source-sha256 <reviewed-combined-sha256> `
-     --source-index C:\Protected\snapshot\transfer.json `
-     --expected-index-sha256 <reviewed-index-sha256> `
-     --execute
-   ```
+    ```powershell
+    node deploy\postgresql\import.mjs `
+      --source-dir C:\Protected\snapshot `
+      --expected-source-sha256 <reviewed-combined-sha256> `
+      --source-index C:\Protected\snapshot\transfer.json `
+      --expected-index-sha256 <reviewed-index-sha256> `
+      --execute
+    ```
 
-   The required combined hash is SHA-256 over the exact favorites file bytes
-   followed immediately by the exact owner file bytes. Both index arguments are
-   mandatory. Before opening PostgreSQL the script checks the exact proof hash,
-   source host, plan/declaration hashes, operation/fence metadata, and both matching
-   `files` entries' targets, kinds, byte counts and SHA values. The approved proof
-   hash binds the export to the reviewed plan and application.
-   Neither credentials nor owner-record values are
-   logged. The script does not load dotenv or start the app.
+    The required combined hash is SHA-256 over the exact favorites file bytes
+    followed immediately by the exact owner file bytes. Both index arguments are
+    mandatory. Before opening PostgreSQL the script checks the exact proof hash,
+    source host, plan/declaration hashes, operation/fence metadata, and both matching
+    `files` entries' targets, kinds, byte counts and SHA values. The approved proof
+    hash binds the export to the reviewed plan and application.
+    Neither credentials nor owner-record values are
+    logged. The script does not load dotenv or start the app.
+
 5. The import requires empty target tables, validates source documents, imports
    both records in one transaction, and compares JSONB document equality,
    including array order and revision. Owner hash/salt/version remain unchanged.
