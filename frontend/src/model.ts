@@ -8,11 +8,66 @@ export type Session = {
 };
 export type Theme = 'midnight' | 'light' | 'system';
 
-export function readPreference(key: string, fallback = ''): string {
+// Safari purges script-written storage a day after a Cloudflare Access redirect, so preferences
+// also live in a cookie the server sets. localStorage stays as a fallback and seeds the first cookie.
+const PREFERENCE_KEYS = ['theme', 'group', 'selected', 'width', 'sidebar-minimized'];
+
+function cookiePreferences(): Record<string, string> {
+    const raw = document.cookie
+        .split(';')
+        .map((part) => part.trim())
+        .find((part) => /^(?:__Host-)?sitedock-prefs=/.test(part));
     try {
-        return localStorage.getItem(`sitedock.${key}`) ?? fallback;
+        const parsed: unknown = raw ? JSON.parse(decodeURIComponent(raw.slice(raw.indexOf('=') + 1))) : null;
+        if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) return {};
+        return Object.fromEntries(
+            Object.entries(parsed).filter((entry): entry is [string, string] => typeof entry[1] === 'string')
+        );
     } catch {
-        return fallback;
+        return {};
+    }
+}
+
+function storedPreference(key: string): string | null {
+    try {
+        return localStorage.getItem(`sitedock.${key}`);
+    } catch {
+        return null;
+    }
+}
+
+export function readPreference(key: string, fallback = ''): string {
+    return storedPreference(key) ?? cookiePreferences()[key] ?? fallback;
+}
+
+const unsent = new Map<string, string>();
+let lastSent = '';
+let sendTimer: ReturnType<typeof setTimeout> | undefined;
+
+function sendPreferences(): void {
+    sendTimer = undefined;
+    try {
+        const all = cookiePreferences();
+        for (const key of PREFERENCE_KEYS) {
+            const value = unsent.get(key) ?? storedPreference(key) ?? all[key];
+            if (value !== null && value !== undefined) all[key] = value;
+        }
+        unsent.clear();
+        const body = JSON.stringify(all);
+        // The first send of each page load also renews the cookie's lifetime.
+        if (body === lastSent) return;
+        lastSent = body;
+        fetch('/api/preferences', {
+            method: 'POST',
+            credentials: 'same-origin',
+            cache: 'no-store',
+            headers: { 'Content-Type': 'application/json' },
+            body,
+        }).catch(() => {
+            lastSent = '';
+        });
+    } catch {
+        lastSent = '';
     }
 }
 
@@ -22,6 +77,9 @@ export function savePreference(key: string, value: string): void {
     } catch {
         /* Private browsing may disable storage. */
     }
+    unsent.set(key, value);
+    clearTimeout(sendTimer);
+    sendTimer = setTimeout(sendPreferences, 300);
 }
 
 export function validateUrl(value: string, ownOrigins: string[] = [location.origin]): string {

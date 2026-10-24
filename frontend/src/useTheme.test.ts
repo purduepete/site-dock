@@ -48,6 +48,17 @@ describe('theme preference', () => {
             expect(result.current[0]).toBe(saved === 'light' || saved === 'system' ? saved : 'midnight');
         }
     );
+    it('falls back to the server-set cookie after Safari purges localStorage', () => {
+        document.cookie = `sitedock-prefs=${encodeURIComponent('{"theme":"light"}')}`;
+        try {
+            new Function(source)();
+            expectTheme(false);
+            const { result } = renderHook(useTheme);
+            expect(result.current[0]).toBe('light');
+        } finally {
+            document.cookie = 'sitedock-prefs=; Max-Age=0';
+        }
+    });
     it('tracks OS only in system mode and supports reselecting it', () => {
         const { result, unmount } = renderHook(useTheme);
         act(() => result.current[1]('system'));

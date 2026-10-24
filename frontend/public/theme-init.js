@@ -1,8 +1,17 @@
 (() => {
-    let choice = 'midnight';
+    let choice = '';
     try {
-        choice = localStorage.getItem('sitedock.theme') || 'midnight';
+        choice = localStorage.getItem('sitedock.theme') || '';
     } catch {}
+    // Safari can purge localStorage; the server-set preferences cookie keeps the choice.
+    try {
+        const raw = document.cookie
+            .split(';')
+            .map((part) => part.trim())
+            .find((part) => /^(?:__Host-)?sitedock-prefs=/.test(part));
+        if (!choice && raw) choice = JSON.parse(decodeURIComponent(raw.slice(raw.indexOf('=') + 1))).theme || '';
+    } catch {}
+    choice = choice || 'midnight';
     const theme =
         choice === 'light' || (choice === 'system' && !matchMedia('(prefers-color-scheme: dark)').matches)
             ? 'light'

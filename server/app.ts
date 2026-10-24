@@ -6,6 +6,7 @@ import type { Config } from './config.js';
 import { Storage, readOwner, verifyPassword, ValidationError, ConflictError, type StorageBackend } from './storage.js';
 
 const WEEK = 7 * 24 * 60 * 60 * 1000;
+const PREFERENCES_AGE = 400 * 24 * 60 * 60;
 const MAX_BODY = 1024 * 1024;
 const crossOriginScripts = new Set(['/sitedock-keys.js', '/sitedock-token.js']);
 interface Session {
@@ -198,6 +199,24 @@ export function createApp(config: Config, options: Options = {}) {
                 if (token) sessions.delete(token);
                 res.setHeader('Set-Cookie', cookie('', 0));
                 send(res, 200, { authenticated: false });
+                return;
+            }
+            if (path === '/api/preferences' && req.method === 'POST') {
+                const input = await body(req);
+                const entries = Object.entries(input);
+                if (
+                    entries.length > 20 ||
+                    entries.some(([key, value]) => !/^[a-z-]{1,40}$/.test(key) || typeof value !== 'string')
+                )
+                    throw new ValidationError('Preferences must map short lowercase keys to strings.');
+                const value = encodeURIComponent(JSON.stringify(input));
+                if (value.length > 3000) throw new ValidationError('Preferences are too large.');
+                // Safari purges localStorage a day after a Cloudflare Access redirect; server-set cookies survive.
+                res.setHeader(
+                    'Set-Cookie',
+                    `${secure ? '__Host-' : ''}sitedock-prefs=${value}; Path=/; SameSite=Lax; Max-Age=${PREFERENCES_AGE}${secure ? '; Secure' : ''}`
+                );
+                send(res, 200, { ok: true });
                 return;
             }
             if (path === '/api/session' || path.startsWith('/api/favorites')) {

@@ -603,6 +603,17 @@ test('gateway authentication relies on the loopback perimeter, accepts exact ali
                 true
             );
             assert.equal((await call('/api/session', 'GET', undefined, { Host: 'evil.example' })).status, 400);
+            const origin = { Origin: 'https://tail.example:8443' };
+            const prefs = await call('/api/preferences', 'POST', { theme: 'light', width: '300' }, origin);
+            assert.equal(prefs.status, 200);
+            assert.equal(
+                prefs.headers['set-cookie']![0],
+                `__Host-sitedock-prefs=${encodeURIComponent('{"theme":"light","width":"300"}')}; Path=/; SameSite=Lax; Max-Age=34560000; Secure`
+            );
+            assert.equal((await call('/api/preferences', 'POST', { theme: 'light' })).status, 403);
+            assert.equal((await call('/api/preferences', 'POST', { Theme: 'light' }, origin)).status, 400);
+            assert.equal((await call('/api/preferences', 'POST', { theme: 1 }, origin)).status, 400);
+            assert.equal((await call('/api/preferences', 'POST', { theme: 'x'.repeat(4000) }, origin)).status, 400);
             assert.equal(
                 (await call('/api/session', 'GET', undefined, { Host: 'dock.example', 'X-Forwarded-Proto': 'https' }))
                     .json.authenticated,
