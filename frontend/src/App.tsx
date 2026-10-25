@@ -1,4 +1,5 @@
-import { useEffect, useMemo, useRef, useState, type CSSProperties, type FormEvent } from 'react';
+import { useEffect, useId, useMemo, useRef, useState, type CSSProperties, type FormEvent, type ReactNode } from 'react';
+import { createPortal } from 'react-dom';
 import {
     api,
     ApiError,
@@ -23,6 +24,8 @@ import { DeleteFavoriteDialog } from './DeleteFavoriteDialog';
 import { forgetMissingIcons, SiteIcon } from './SiteIcon';
 import { CreateGroupDialog } from './CreateGroupDialog';
 import { GroupHud } from './GroupHud';
+import { ReorderGroupsDialog } from './ReorderGroupsDialog';
+import { Hint, InfoBox } from './InfoBox';
 import { forgetOrphanedTokens, handleTokenRequest, originOf, parseTokenRequest, readToken, writeToken } from './tokens';
 
 const localOrigins = ['localhost', '127.0.0.1', '[::1]'].flatMap((host) =>
@@ -86,8 +89,12 @@ function Conflict({ current, accept, discard }: { current: Store; accept: () => 
                 including additions or deletions from another browser.
             </p>
             <div className="button-row">
-                <button onClick={accept}>Keep pending list for review</button>
-                <button onClick={discard}>Use latest list</button>
+                <button type="button" onClick={accept}>
+                    Keep pending list for review
+                </button>
+                <button type="button" onClick={discard}>
+                    Use latest list
+                </button>
             </div>
         </section>
     );
@@ -101,6 +108,7 @@ function FavoriteForm({
     busy,
     blocked,
     allowedOrigins,
+    feedback,
     onSave,
     onClose,
 }: {
@@ -111,9 +119,24 @@ function FavoriteForm({
     busy: boolean;
     blocked: boolean;
     allowedOrigins: string[];
+    feedback: ReactNode;
     onSave: (favorite: Favorite) => Promise<void>;
     onClose: () => void;
 }) {
+    const dialog = useRef<HTMLDialogElement>(null);
+    const nameInput = useRef<HTMLInputElement>(null);
+    const returnFocus = useRef(document.activeElement instanceof HTMLElement ? document.activeElement : null);
+    const title = useId();
+    useEffect(() => {
+        const target = returnFocus.current;
+        const element = dialog.current!;
+        element.showModal();
+        nameInput.current?.focus();
+        return () => {
+            element.close();
+            if (target?.isConnected) target.focus();
+        };
+    }, []);
     const [name, setName] = useState(favorite.name);
     const [url, setUrl] = useState(favorite.url);
     const [mode, setMode] = useState(favorite.mode);
@@ -148,10 +171,18 @@ function FavoriteForm({
             setError(message(cause));
         }
     }
-    return (
-        <section className="editor" aria-label={favorite.name ? 'Edit favorite' : 'Add favorite'}>
+    return createPortal(
+        <dialog
+            ref={dialog}
+            className="confirmation-modal editor"
+            aria-labelledby={title}
+            onCancel={(event) => {
+                event.preventDefault();
+                if (!busy) onClose();
+            }}
+        >
             <div className="section-heading">
-                <h2>{favorite.name ? 'Edit favorite' : 'Add favorite'}</h2>
+                <h2 id={title}>{favorite.name ? 'Edit favorite' : 'Add favorite'}</h2>
                 <button type="button" aria-label="Close editor" onClick={onClose} disabled={busy}>
                     <Icon name="close" />
                 </button>
@@ -160,6 +191,7 @@ function FavoriteForm({
                 <label>
                     Name
                     <input
+                        ref={nameInput}
                         autoFocus
                         maxLength={100}
                         value={name}
@@ -179,11 +211,15 @@ function FavoriteForm({
                     />
                 </label>
                 <fieldset className="favorite-groups" disabled={busy}>
-                    <legend>Groups</legend>
-                    <p className="muted">
-                        Select every group this site belongs to. Sites with no groups appear in All sites. Each group
-                        holds up to {GROUP_LIMIT} sites.
-                    </p>
+                    <legend>
+                        <span className="field-heading">
+                            Groups
+                            <InfoBox heading="Group membership">
+                                Select every group this site belongs to. Sites with no groups appear in All sites. Each
+                                group holds up to {GROUP_LIMIT} sites.
+                            </InfoBox>
+                        </span>
+                    </legend>
                     {[...groups, ...selectedGroups.filter((group) => !groups.includes(group))].map((group) => {
                         const checked = selectedGroups.includes(group);
                         const full = isFull(group);
@@ -220,7 +256,13 @@ function FavoriteForm({
                     )}
                 </fieldset>
                 <div className="dropdown-field">
-                    <span>Open preference</span>
+                    <span className="field-heading">
+                        Open preference
+                        <InfoBox heading="Opening sites">
+                            Some sites block embedding or require a separate tab for sign-in. HTTP sites always open
+                            separately when Site Dock uses HTTPS.
+                        </InfoBox>
+                    </span>
                     <Dropdown
                         label="Open preference"
                         value={mode}
@@ -231,10 +273,6 @@ function FavoriteForm({
                         ]}
                     />
                 </div>
-                <p className="muted">
-                    Some sites block embedding or require a separate tab for sign-in. HTTP sites always open separately
-                    when Site Dock uses HTTPS.
-                </p>
                 {hasToken && tokenOrigin && (
                     <div className="saved-token">
                         <span className="muted">This browser keeps a sign-in token for {tokenOrigin}.</span>
@@ -254,6 +292,7 @@ function FavoriteForm({
                         {error}
                     </p>
                 )}
+                {feedback}
                 <div className="button-row">
                     <button type="submit" className="primary" disabled={busy || blocked}>
                         {busy ? 'Saving…' : 'Save favorite'}
@@ -263,7 +302,8 @@ function FavoriteForm({
                     </button>
                 </div>
             </form>
-        </section>
+        </dialog>,
+        document.body
     );
 }
 
@@ -278,6 +318,7 @@ export function App() {
         return saved === 'ungrouped' ? 'all' : saved;
     });
     const [creatingGroup, setCreatingGroup] = useState(false);
+    const [reorderingGroups, setReorderingGroups] = useState(false);
     const [pending, setPending] = useState(false);
     const [conflict, setConflict] = useState<Store | null>(null);
     const [error, setError] = useState('');
@@ -316,7 +357,7 @@ export function App() {
 
     // Native keys and forwarded iframe messages share this dispatcher, which re-checks auth and modal state.
     function runCommand(command: Command, forwarded: boolean) {
-        if (!auth.current || editor || deleteTarget || creatingGroup || hudOpen) return false;
+        if (!auth.current || editor || deleteTarget || creatingGroup || reorderingGroups || hudOpen) return false;
         focusOpenLink.current = false;
         if (command.kind === 'hud') {
             const frame = forwarded && current ? frameElements.current.get(current.id) : undefined;
@@ -424,6 +465,7 @@ export function App() {
         setDraft([]);
         setGroups([]);
         setCreatingGroup(false);
+        setReorderingGroups(false);
         setHudOpen(false);
         setFrames([]);
         setEditor(null);
@@ -714,6 +756,20 @@ export function App() {
                     }}
                 />
             )}
+            {reorderingGroups && (
+                <ReorderGroupsDialog
+                    groups={groups}
+                    busy={busy}
+                    blocked={!!conflict}
+                    onCancel={() => setReorderingGroups(false)}
+                    onSave={async (nextGroups) => {
+                        if (!(await save(draft, undefined, nextGroups))) return false;
+                        setReorderingGroups(false);
+                        setAnnouncement('Group order saved.');
+                        return true;
+                    }}
+                />
+            )}
             {hudOpen && (
                 <GroupHud
                     current={groupFilter}
@@ -751,22 +807,23 @@ export function App() {
                         <span className="brand-mark mobile-only">
                             <img className="brand-icon" src="/favicon.svg" alt="" />
                         </span>
-                        <button
-                            type="button"
-                            className="brand-mark brand-toggle desktop-only"
-                            aria-label={minimized ? 'Expand favorites' : 'Minimize favorites'}
-                            title={minimized ? 'Expand sidebar' : 'Minimize sidebar'}
-                            aria-controls="favorites-sidebar"
-                            aria-expanded={!minimized}
-                            onClick={() => {
-                                const next = !minimized;
-                                setMinimized(next);
-                                setResizing(false);
-                                savePreference('sidebar-minimized', String(next));
-                            }}
-                        >
-                            <img className="brand-icon" src="/favicon.svg" alt="" />
-                        </button>
+                        <Hint text={minimized ? 'Expand sidebar' : 'Minimize sidebar'}>
+                            <button
+                                type="button"
+                                className="brand-mark brand-toggle desktop-only"
+                                aria-label={minimized ? 'Expand favorites' : 'Minimize favorites'}
+                                aria-controls="favorites-sidebar"
+                                aria-expanded={!minimized}
+                                onClick={() => {
+                                    const next = !minimized;
+                                    setMinimized(next);
+                                    setResizing(false);
+                                    savePreference('sidebar-minimized', String(next));
+                                }}
+                            >
+                                <img className="brand-icon" src="/favicon.svg" alt="" />
+                            </button>
+                        </Hint>
                         Site Dock
                     </span>
                     <button className="mobile-only" aria-label="Close favorites" onClick={() => setSidebar(false)}>
@@ -796,27 +853,34 @@ export function App() {
                         <Icon name="plus" />
                     </button>
                 </div>
-                <div className="group-filter" title="Switch group (Alt+G)">
+                <div className="group-filter">
                     <Dropdown
                         label="Group"
+                        hint
                         value={groupFilter}
                         options={[
                             { value: 'all', label: 'All sites' },
                             ...groups.map((name) => ({ value: `group:${name}`, label: name })),
                             { value: 'create', label: 'Create group...' },
+                            { value: 'reorder', label: 'Reorder groups...' },
                         ]}
                         onChange={(value) => {
-                            if (value !== 'create') {
+                            if (value !== 'create' && value !== 'reorder') {
                                 filterGroup(value);
                                 return;
                             }
                             if (!store || busy || conflict || pending || editor) {
-                                setError('Finish or discard pending edits before creating a group.');
+                                setError('Finish or discard pending edits before creating or reordering groups.');
                                 return;
                             }
-                            setCreatingGroup(true);
+                            if (value === 'reorder') setReorderingGroups(true);
+                            else setCreatingGroup(true);
                         }}
                     />
+                    <InfoBox heading="Groups">
+                        Choose a group here or press Alt+G to search. Create group adds a group. Reorder groups changes
+                        the shared order with up/down buttons; All sites stays first.
+                    </InfoBox>
                 </div>
                 <nav className="favorites-list" aria-label="Favorite websites">
                     {visibleFavorites.map((favorite, index) => {
@@ -835,82 +899,88 @@ export function App() {
                                         </span>
                                     )}
                                     {isExternal(favorite) ? (
-                                        <a
-                                            ref={(element) => {
-                                                if (element) favoriteControls.current.set(favorite.id, element);
-                                                else favoriteControls.current.delete(favorite.id);
-                                            }}
-                                            className="favorite-select"
-                                            aria-label={`Open ${favorite.name} in a separate tab`}
-                                            aria-keyshortcuts={key ? `Alt+${key}` : undefined}
-                                            title={key ? `${favorite.name} (Alt+${key})` : favorite.name}
-                                            href={favorite.url}
-                                            target="_blank"
-                                            rel="noopener noreferrer"
-                                            aria-current={selected === favorite.id ? 'page' : undefined}
-                                            onClick={() => choose(favorite.id)}
-                                        >
-                                            <span>{favorite.name}</span>
-                                            <small>Separate tab{key && <kbd>Alt+{key}</kbd>}</small>
-                                        </a>
+                                        <Hint text={key ? `${favorite.name} (Alt+${key})` : favorite.name}>
+                                            <a
+                                                ref={(element) => {
+                                                    if (element) favoriteControls.current.set(favorite.id, element);
+                                                    else favoriteControls.current.delete(favorite.id);
+                                                }}
+                                                className="favorite-select"
+                                                aria-label={`Open ${favorite.name} in a separate tab`}
+                                                aria-keyshortcuts={key ? `Alt+${key}` : undefined}
+                                                href={favorite.url}
+                                                target="_blank"
+                                                rel="noopener noreferrer"
+                                                aria-current={selected === favorite.id ? 'page' : undefined}
+                                                onClick={() => choose(favorite.id)}
+                                            >
+                                                <span>{favorite.name}</span>
+                                                <small>Separate tab{key && <kbd>Alt+{key}</kbd>}</small>
+                                            </a>
+                                        </Hint>
                                     ) : (
-                                        <button
-                                            ref={(element) => {
-                                                if (element) favoriteControls.current.set(favorite.id, element);
-                                                else favoriteControls.current.delete(favorite.id);
-                                            }}
-                                            className="favorite-select"
-                                            aria-label={favorite.name}
-                                            aria-keyshortcuts={key ? `Alt+${key}` : undefined}
-                                            title={key ? `${favorite.name} (Alt+${key})` : favorite.name}
-                                            aria-current={selected === favorite.id ? 'page' : undefined}
-                                            onClick={() => choose(favorite.id)}
-                                        >
-                                            <span>{favorite.name}</span>
-                                            <small>
-                                                {new URL(favorite.url).hostname}
-                                                {key && <kbd>Alt+{key}</kbd>}
-                                            </small>
-                                        </button>
+                                        <Hint text={key ? `${favorite.name} (Alt+${key})` : favorite.name}>
+                                            <button
+                                                ref={(element) => {
+                                                    if (element) favoriteControls.current.set(favorite.id, element);
+                                                    else favoriteControls.current.delete(favorite.id);
+                                                }}
+                                                className="favorite-select"
+                                                aria-label={favorite.name}
+                                                aria-keyshortcuts={key ? `Alt+${key}` : undefined}
+                                                aria-current={selected === favorite.id ? 'page' : undefined}
+                                                onClick={() => choose(favorite.id)}
+                                            >
+                                                <span>{favorite.name}</span>
+                                                <small>
+                                                    {new URL(favorite.url).hostname}
+                                                    {key && <kbd>Alt+{key}</kbd>}
+                                                </small>
+                                            </button>
+                                        </Hint>
                                     )}
                                     {isExternal(favorite) && <Icon name="external" />}
                                 </div>
                                 <div className="favorite-actions">
-                                    <button
-                                        aria-label={`Move ${favorite.name} up`}
-                                        title="Move up"
-                                        disabled={index === 0 || busy || !!conflict}
-                                        onClick={() => reorder(favorite.id, index - 1)}
-                                    >
-                                        <Icon name="up" />
-                                    </button>
-                                    <button
-                                        aria-label={`Move ${favorite.name} down`}
-                                        title="Move down"
-                                        disabled={index === visibleFavorites.length - 1 || busy || !!conflict}
-                                        onClick={() => reorder(favorite.id, index + 1)}
-                                    >
-                                        <Icon name="down" />
-                                    </button>
-                                    <button
-                                        aria-label={`Edit ${favorite.name}`}
-                                        title="Edit favorite"
-                                        disabled={busy}
-                                        onClick={() => {
-                                            setEditor(favorite);
-                                            setSidebar(false);
-                                        }}
-                                    >
-                                        <Icon name="edit" />
-                                    </button>
-                                    <button
-                                        aria-label={`Delete ${favorite.name}`}
-                                        title="Delete favorite"
-                                        disabled={busy || !!conflict}
-                                        onClick={() => setDeleteTarget(favorite)}
-                                    >
-                                        <Icon name="trash" />
-                                    </button>
+                                    <Hint text="Move up">
+                                        <button
+                                            aria-label={`Move ${favorite.name} up`}
+                                            disabled={index === 0 || busy || !!conflict}
+                                            onClick={() => reorder(favorite.id, index - 1)}
+                                        >
+                                            <Icon name="up" />
+                                        </button>
+                                    </Hint>
+                                    <Hint text="Move down">
+                                        <button
+                                            aria-label={`Move ${favorite.name} down`}
+                                            disabled={index === visibleFavorites.length - 1 || busy || !!conflict}
+                                            onClick={() => reorder(favorite.id, index + 1)}
+                                        >
+                                            <Icon name="down" />
+                                        </button>
+                                    </Hint>
+                                    <Hint text="Edit favorite">
+                                        <button
+                                            aria-label={`Edit ${favorite.name}`}
+                                            disabled={busy}
+                                            onClick={() => {
+                                                setEditor(favorite);
+                                                setSidebar(false);
+                                            }}
+                                        >
+                                            <Icon name="edit" />
+                                        </button>
+                                    </Hint>
+                                    <Hint text="Delete favorite">
+                                        <button
+                                            aria-label={`Delete ${favorite.name}`}
+                                            disabled={busy || !!conflict}
+                                            onClick={() => setDeleteTarget(favorite)}
+                                        >
+                                            <Icon name="trash" />
+                                        </button>
+                                    </Hint>
                                 </div>
                             </div>
                         );
@@ -931,9 +1001,11 @@ export function App() {
                             {session.gatewayAuthenticated ? 'Gateway' : (session.username ?? 'Owner')}
                         </span>
                         {!session.gatewayAuthenticated && (
-                            <button aria-label="Sign out" title="Sign out of Site Dock" onClick={() => void logout()}>
-                                <Icon name="logout" />
-                            </button>
+                            <Hint text="Sign out of Site Dock">
+                                <button aria-label="Sign out" onClick={() => void logout()}>
+                                    <Icon name="logout" />
+                                </button>
+                            </Hint>
                         )}
                     </div>
                 </footer>
@@ -991,21 +1063,24 @@ export function App() {
                     <div className="toolbar">
                         {current && (
                             <>
-                                <button
-                                    disabled={isExternal(current)}
-                                    aria-label="Reload selected site"
-                                    title="Reload from the saved address"
-                                    onClick={() =>
-                                        setFrames((previous) =>
-                                            previous.map((frame) =>
-                                                frame.id === selected ? { ...frame, version: frame.version + 1 } : frame
+                                <Hint text="Reload from the saved address">
+                                    <button
+                                        disabled={isExternal(current)}
+                                        aria-label="Reload selected site"
+                                        onClick={() =>
+                                            setFrames((previous) =>
+                                                previous.map((frame) =>
+                                                    frame.id === selected
+                                                        ? { ...frame, version: frame.version + 1 }
+                                                        : frame
+                                                )
                                             )
-                                        )
-                                    }
-                                >
-                                    <Icon name="reload" />
-                                    <span className="toolbar-label">Reload</span>
-                                </button>
+                                        }
+                                    >
+                                        <Icon name="reload" />
+                                        <span className="toolbar-label">Reload</span>
+                                    </button>
+                                </Hint>
                                 <a
                                     className="button"
                                     href={current.url}
@@ -1024,12 +1099,12 @@ export function App() {
                     </div>
                 </header>
                 <div className="notices">
-                    {error && (
+                    {error && !editor && (
                         <p role="alert" className="error">
                             {error}
                         </p>
                     )}
-                    {conflictPanel}
+                    {!editor && conflictPanel}
                     {pending && !conflict && (
                         <div className="pending">
                             <span>You have pending changes.</span>
@@ -1067,6 +1142,16 @@ export function App() {
                             busy={busy}
                             blocked={!!conflict}
                             allowedOrigins={[...ownOrigins, ...(session.allowedOrigins ?? [])]}
+                            feedback={
+                                <>
+                                    {error && (
+                                        <p role="alert" className="error">
+                                            {error}
+                                        </p>
+                                    )}
+                                    {conflictPanel}
+                                </>
+                            }
                             onClose={() => setEditor(null)}
                             onSave={async (favorite) => {
                                 const next = draft.some((item) => item.id === favorite.id)

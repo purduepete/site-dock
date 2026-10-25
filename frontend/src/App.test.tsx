@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { App } from './App';
 import type { Favorite } from './model';
@@ -119,6 +119,85 @@ async function ready() {
 }
 
 describe('dashboard sessions and embedded pages', () => {
+    it('edits in a modal, keeps its dropdown inside, and returns focus on cancel', async () => {
+        await ready();
+        const edit = screen.getByRole('button', { name: 'Edit Example' });
+        await userEvent.click(edit);
+        const modal = screen.getByRole('dialog', { name: 'Edit favorite' });
+        expect(modal.parentElement).toBe(document.body);
+        await userEvent.type(within(modal).getByLabelText('Name', { exact: true }), ' changed');
+        await userEvent.click(within(modal).getByRole('combobox', { name: 'Open preference' }));
+        expect(within(modal).getByRole('listbox', { name: 'Open preference' })).toBeTruthy();
+        await userEvent.click(within(modal).getByRole('option', { name: 'Separate tab' }));
+        fireEvent(modal, new Event('cancel', { cancelable: true }));
+        expect(screen.queryByRole('dialog')).toBeNull();
+        expect(document.activeElement).toBe(edit);
+        expect(data[0].name).toBe('Example');
+        expect(requests.filter((request) => request.body && request.path === '/api/favorites')).toHaveLength(0);
+    });
+
+    it('saves group order for both pickers without changing favorites or the active group', async () => {
+        groupNames = ['Personal', 'Sports', 'News'];
+        const original = structuredClone(data);
+        await ready();
+        await userEvent.click(screen.getByRole('combobox', { name: 'Group' }));
+        await userEvent.click(screen.getByRole('option', { name: 'Sports' }));
+        await userEvent.click(screen.getByRole('combobox', { name: 'Group' }));
+        await userEvent.click(screen.getByRole('option', { name: 'Reorder groups...' }));
+        const modal = screen.getByRole('dialog', { name: 'Reorder groups' });
+        expect((within(modal).getByRole('button', { name: 'Move Personal up' }) as HTMLButtonElement).disabled).toBe(
+            true
+        );
+        expect((within(modal).getByRole('button', { name: 'Move News down' }) as HTMLButtonElement).disabled).toBe(
+            true
+        );
+        await userEvent.click(within(modal).getByRole('button', { name: 'Move Sports up' }));
+        await userEvent.click(within(modal).getByRole('button', { name: 'Save order' }));
+        await waitFor(() => expect(groupNames).toEqual(['Sports', 'Personal', 'News']));
+        expect(data).toEqual(original);
+        expect(screen.getByRole('combobox', { name: 'Group' }).textContent).toBe('Sports');
+        expect(
+            requests.find((request) => request.path === '/api/favorites' && request.body)?.body?.operation
+        ).toBeUndefined();
+        await userEvent.click(screen.getByRole('combobox', { name: 'Group' }));
+        expect(screen.getAllByRole('option').map((option) => option.textContent)).toEqual([
+            'All sites',
+            'Sports',
+            'Personal',
+            'News',
+            'Create group...',
+            'Reorder groups...',
+        ]);
+        await userEvent.keyboard('{Escape}');
+        await userEvent.keyboard('{Alt>}g{/Alt}');
+        expect(
+            within(screen.getByRole('dialog', { name: 'Switch group' }))
+                .getAllByRole('option')
+                .map((option) => option.textContent)
+        ).toEqual(['All sites3', 'Sports0', 'Personal0', 'News0']);
+    });
+
+    it('discards canceled group ordering and allows retry after a save failure', async () => {
+        groupNames = ['Personal', 'Sports'];
+        await ready();
+        async function open() {
+            await userEvent.click(screen.getByRole('combobox', { name: 'Group' }));
+            await userEvent.click(screen.getByRole('option', { name: 'Reorder groups...' }));
+            await userEvent.click(screen.getByRole('button', { name: 'Move Sports up' }));
+        }
+        await open();
+        fireEvent(screen.getByRole('dialog'), new Event('cancel', { cancelable: true }));
+        expect(groupNames).toEqual(['Personal', 'Sports']);
+        await open();
+        failSave = true;
+        await userEvent.click(screen.getByRole('button', { name: 'Save order' }));
+        await screen.findByText(/Group order could not be saved/);
+        failSave = false;
+        await userEvent.click(screen.getByRole('button', { name: 'Save order' }));
+        await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
+        expect(groupNames).toEqual(['Sports', 'Personal']);
+    });
+
     it('shows gateway-protected status without a duplicate SiteDock sign-out control', async () => {
         gatewayAuthenticated = true;
         await ready();
@@ -638,7 +717,9 @@ describe('ten-site shortcuts and group limit', () => {
         await readyWith('Site 1');
         expect(pills()).toEqual(['1', '2', '3', '4', '5', '6', '7', '8', '9', '0']);
         expect(screen.getByRole('button', { name: 'Site 10' }).getAttribute('aria-keyshortcuts')).toBe('Alt+0');
-        expect(screen.getByRole('button', { name: 'Site 10' }).getAttribute('title')).toBe('Site 10 (Alt+0)');
+        const shortcutDescription = screen.getByRole('button', { name: 'Site 10' }).getAttribute('aria-describedby');
+        expect(document.getElementById(shortcutDescription!)?.textContent).toBe('Site 10 (Alt+0)');
+        expect(screen.getByRole('button', { name: 'Site 10' }).getAttribute('title')).toBeNull();
         expect(screen.getByRole('button', { name: 'Site 11' }).getAttribute('aria-keyshortcuts')).toBeNull();
         expect(fireEvent.keyDown(window, { code: 'Digit0', altKey: true })).toBe(false);
         await screen.findByTitle('Site 10');

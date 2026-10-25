@@ -241,7 +241,71 @@ p {
     color: var(--accent);
 }
 .group-filter {
+    display: flex;
+    align-items: center;
+    gap: 6px;
     padding: 0 14px 12px;
+}
+.group-filter > .dropdown {
+    flex: 1;
+    min-width: 0;
+}
+.info-box-trigger {
+    flex: none;
+    min-height: 28px;
+    width: 28px;
+    padding: 4px;
+    border: 0;
+    background: none;
+    color: var(--muted);
+}
+.info-box-trigger:hover {
+    border: 0;
+    background: none;
+    color: var(--accent);
+}
+.info-box-trigger svg {
+    width: 14px;
+    height: 14px;
+}
+.field-heading {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+}
+.info-box {
+    position: fixed;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    margin: -1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    font-size: 12px;
+    font-weight: 400;
+}
+.info-box.is-open {
+    z-index: 3000;
+    width: max-content;
+    max-width: min(320px, calc(100vw - 16px));
+    max-height: calc(100dvh - 16px);
+    height: auto;
+    padding: 10px 12px;
+    margin: 0;
+    overflow: auto;
+    clip-path: none;
+    border: 1px solid var(--border);
+    border-radius: 0;
+    background: var(--panel);
+    color: var(--text);
+    box-shadow: 0 4px 12px rgb(2 6 23 / 20%);
+    line-height: 1.5;
+    overflow-wrap: anywhere;
+    white-space: normal;
+}
+.info-box strong {
+    display: block;
+    margin-bottom: 4px;
 }
 .group-filter .dropdown-trigger {
     min-width: 0;
@@ -590,6 +654,9 @@ p {
     }
     .sidebar-minimized .group-filter {
         padding: 2px 3px 8px;
+    }
+    .sidebar-minimized .group-filter > .info-box-trigger {
+        display: none;
     }
     .sidebar-minimized .group-filter .dropdown-trigger {
         padding: 7px;
@@ -949,8 +1016,24 @@ iframe {
     border-color: #991b1b;
 }
 .editor {
-    max-width: 580px;
+    width: min(580px, calc(100vw - 32px));
     padding: 22px;
+}
+.group-order {
+    list-style: none;
+    padding: 0;
+    display: grid;
+    gap: 8px;
+}
+.group-order li {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+.group-order-name {
+    flex: 1;
+    min-width: 0;
+    overflow-wrap: anywhere;
 }
 .editor .section-heading {
     margin-bottom: 18px;

@@ -1,6 +1,7 @@
 import { useEffect, useId, useLayoutEffect, useRef, useState, type KeyboardEvent } from 'react';
 import { createPortal } from 'react-dom';
 import { Icon } from './Icon';
+import { Hint } from './InfoBox';
 
 type Option<T extends string> = { value: T; label: string };
 
@@ -9,11 +10,13 @@ export function Dropdown<T extends string>({
     value,
     options,
     onChange,
+    hint = false,
 }: {
     label: string;
     value: T;
     options: readonly Option<T>[];
     onChange: (value: T) => void;
+    hint?: boolean;
 }) {
     const id = useId();
     const trigger = useRef<HTMLButtonElement>(null);
@@ -111,25 +114,27 @@ export function Dropdown<T extends string>({
         }
     }
 
+    const control = (
+        <button
+            ref={trigger}
+            type="button"
+            className="dropdown-trigger"
+            role="combobox"
+            aria-label={label}
+            aria-haspopup="listbox"
+            aria-expanded={open}
+            aria-controls={open ? id : undefined}
+            aria-activedescendant={open ? `${id}-${active}` : undefined}
+            onKeyDown={keyDown}
+            onClick={() => (open ? setOpen(false) : show())}
+        >
+            <span>{options[selected]?.label}</span>
+            <Icon name="down" />
+        </button>
+    );
     return (
         <div className="dropdown">
-            <button
-                ref={trigger}
-                type="button"
-                className="dropdown-trigger"
-                role="combobox"
-                aria-label={label}
-                title={options[selected]?.label}
-                aria-haspopup="listbox"
-                aria-expanded={open}
-                aria-controls={open ? id : undefined}
-                aria-activedescendant={open ? `${id}-${active}` : undefined}
-                onKeyDown={keyDown}
-                onClick={() => (open ? setOpen(false) : show())}
-            >
-                <span>{options[selected]?.label}</span>
-                <Icon name="down" />
-            </button>
+            {hint ? <Hint text={options[selected]?.label ?? label}>{control}</Hint> : control}
             {open &&
                 createPortal(
                     <div
@@ -170,7 +175,7 @@ export function Dropdown<T extends string>({
                             </button>
                         ))}
                     </div>,
-                    document.body
+                    trigger.current?.closest('dialog') ?? document.body
                 )}
         </div>
     );

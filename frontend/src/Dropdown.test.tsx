@@ -29,6 +29,8 @@ describe('custom dropdown', () => {
         render(<Fixture />);
         const trigger = screen.getByRole('combobox', { name: 'Theme' });
         await userEvent.click(trigger);
+        expect(screen.queryByRole('tooltip')).toBeNull();
+        expect(trigger.getAttribute('aria-describedby')).toBeNull();
         expect(screen.getByRole('option', { name: 'System' }).getAttribute('aria-selected')).toBe('true');
         await userEvent.click(screen.getByRole('option', { name: 'Dark' }));
         expect(trigger.textContent).toBe('Dark');
