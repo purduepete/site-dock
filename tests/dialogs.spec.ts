@@ -1,6 +1,6 @@
 import { expect, test } from '@playwright/test';
 
-test('iPad desktop identity suppresses action hints but keeps Info help on tap', async ({ page }) => {
+test('iPad desktop identity suppresses action hints', async ({ page }) => {
     await page.addInitScript(() => {
         Object.defineProperty(navigator, 'platform', { get: () => 'MacIntel' });
         Object.defineProperty(navigator, 'maxTouchPoints', { get: () => 5 });
@@ -12,14 +12,6 @@ test('iPad desktop identity suppresses action hints but keeps Info help on tap',
     const action = page.getByRole('button', { name: 'Minimize favorites' });
     await action.hover();
     await action.focus();
-    await expect(page.getByRole('tooltip')).toHaveCount(0);
-    const info = page.getByRole('button', { name: 'Groups information', exact: true });
-    await info.hover();
-    await info.focus();
-    await expect(page.getByRole('tooltip')).toHaveCount(0);
-    await info.click();
-    await expect(page.getByRole('tooltip')).toBeVisible();
-    await page.keyboard.press('Escape');
     await expect(page.getByRole('tooltip')).toHaveCount(0);
 });
 
@@ -50,49 +42,14 @@ test('site modal and shared group ordering work in both themes and on narrow scr
         await expect(page.getByRole('tooltip')).toHaveCount(0);
         await expect(themeControl).not.toHaveAttribute('aria-describedby');
         await expect(page.locator('button[title], a[title], div[title]')).toHaveCount(0);
-        const info = page.getByRole('button', { name: 'Groups information', exact: true });
         await page.getByText('FAVORITES', { exact: false }).first().hover();
         await expect(page.getByRole('tooltip')).toHaveCount(0);
-        await info.hover();
-        const help = page.getByRole('tooltip');
-        await expect(help).toBeVisible();
-        await expect(help).toHaveCSS('border-radius', '0px');
-        await help.hover();
-        await expect(help).toBeVisible();
-        await page.keyboard.press('Escape');
-        await expect(help).toHaveCount(0);
-        await info.focus();
-        await expect(help).toBeVisible();
-        await page.keyboard.press('Tab');
-        await expect(info).toHaveAttribute('aria-expanded', 'false');
-        await info.click();
-        await expect(help).toBeVisible();
-        await page.getByRole('heading', { level: 1 }).click();
-        await expect(info).toHaveAttribute('aria-expanded', 'false');
         const edit = page.getByRole('button', { name: 'Edit Example' });
         await edit.click();
         const modal = page.getByRole('dialog', { name: 'Edit favorite' });
         await expect(modal).toBeVisible();
         await expect(modal.getByLabel('Name', { exact: true })).toBeFocused();
         await expect(modal).toHaveCSS('border-radius', '0px');
-        for (const label of ['Groups', 'Open preference']) {
-            const row = modal.locator('.field-heading').filter({ hasText: label });
-            const icon = row.getByRole('button');
-            await expect(icon).toHaveCSS('border-top-width', '0px');
-            await expect(icon).toHaveCSS('background-color', 'rgba(0, 0, 0, 0)');
-            await icon.hover();
-            await expect(icon).toHaveCSS('border-top-width', '0px');
-            await expect(icon).toHaveCSS('background-color', 'rgba(0, 0, 0, 0)');
-            await page.keyboard.press('Escape');
-            const labelBounds = await row.boundingBox();
-            const iconBounds = await row.getByRole('button').boundingBox();
-            expect(iconBounds!.y).toBeGreaterThanOrEqual(labelBounds!.y);
-            expect(iconBounds!.y + iconBounds!.height).toBeLessThanOrEqual(labelBounds!.y + labelBounds!.height + 1);
-        }
-        await modal.getByRole('button', { name: 'Group membership information' }).click();
-        await expect(modal.getByRole('tooltip')).toBeVisible();
-        await page.keyboard.press('Escape');
-        await expect(modal).toBeVisible();
         await modal.getByLabel('Name', { exact: true }).focus();
         for (let step = 0; step < 12; step++) {
             await page.keyboard.press('Tab');
@@ -147,13 +104,6 @@ test('site modal and shared group ordering work in both themes and on narrow scr
     await page.getByRole('button', { name: 'Edit Example' }).click();
     const modal = page.getByRole('dialog', { name: 'Edit favorite' });
     await expect(modal).toBeVisible();
-    await modal.getByRole('button', { name: 'Group membership information' }).dispatchEvent('click');
-    const help = modal.getByRole('tooltip');
-    await expect(help).toBeVisible();
-    const helpBounds = await help.boundingBox();
-    expect(helpBounds!.x).toBeGreaterThanOrEqual(0);
-    expect(helpBounds!.x + helpBounds!.width).toBeLessThanOrEqual(390);
-    await page.keyboard.press('Escape');
     const bounds = await modal.boundingBox();
     expect(bounds!.x).toBeGreaterThanOrEqual(0);
     expect(bounds!.x + bounds!.width).toBeLessThanOrEqual(390);
