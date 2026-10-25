@@ -236,6 +236,9 @@ p {
     background: none;
     border: 0;
 }
+.list-heading button:hover:not(:disabled) {
+    background: var(--selected);
+}
 .count {
     margin-left: 9px;
     color: var(--accent);

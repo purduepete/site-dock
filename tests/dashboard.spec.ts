@@ -1,5 +1,34 @@
 import { expect, test } from '@playwright/test';
 
+test('shows Add favorite hover feedback and opens the editor in both sidebar sizes', async ({ page }) => {
+    await page.goto('/');
+    await page.getByLabel(/username/i).fill('browser-owner');
+    await page.getByLabel(/^password/i).fill('browser-test-password-123');
+    await page.getByRole('button', { name: /sign in/i }).click();
+    const add = page.getByRole('complementary', { name: 'Favorites' }).getByRole('button', {
+        name: 'Add favorite',
+        exact: true,
+    });
+    await expect(add).toBeEnabled();
+
+    for (const theme of ['Light', 'Midnight']) {
+        await page.getByRole('combobox', { name: 'Theme' }).click();
+        await page.getByRole('option', { name: theme, exact: true }).click();
+        for (const minimized of [false, true]) {
+            if (minimized) await page.getByRole('button', { name: 'Minimize favorites' }).click();
+            await page.mouse.move(500, 300);
+            await expect(add).toHaveCSS('background-color', 'rgba(0, 0, 0, 0)');
+            await add.hover();
+            await expect(add).not.toHaveCSS('background-color', 'rgba(0, 0, 0, 0)');
+            await expect(page.getByRole('tooltip')).toHaveCount(0);
+            await add.click();
+            await expect(page.getByRole('dialog', { name: 'Add favorite' })).toBeVisible();
+            await page.getByRole('button', { name: 'Close editor', exact: true }).last().click();
+            if (minimized) await page.getByRole('button', { name: 'Expand favorites' }).click();
+        }
+    }
+});
+
 test('requires login, rejects invalid credentials, and supports keyboard access', async ({ page }) => {
     await page.goto('/');
     await expect(page.getByRole('button', { name: /sign in/i })).toBeVisible();
