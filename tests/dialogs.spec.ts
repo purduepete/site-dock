@@ -42,9 +42,9 @@ test('site modal and shared group ordering work in both themes and on narrow scr
     expect(seeded.ok()).toBe(true);
     await page.reload();
     for (const theme of ['Light', 'Midnight']) {
-        await page.getByRole('combobox', { name: 'Theme' }).click();
-        await page.getByRole('option', { name: theme, exact: true }).click();
-        const themeControl = page.getByRole('combobox', { name: 'Theme' });
+        await page.getByRole('button', { name: /^Theme:/ }).click();
+        await page.getByRole('button', { name: theme, exact: true }).click();
+        const themeControl = page.getByRole('button', { name: /^Theme:/ });
         await themeControl.hover();
         await themeControl.focus();
         await expect(page.getByRole('tooltip')).toHaveCount(0);

@@ -219,7 +219,7 @@ Do not use `tailscale serve reset` if the node has other routes.
 
     SiteDock stores the token in its own localStorage on that device, keyed by the frame's origin. It never sends tokens to the SiteDock server, so each device signs in to each app once. SiteDock answers only frames it mounted for an embedded favorite, only when the message comes from that frame's window with the favorite's saved origin, and only while you're signed in to SiteDock. Replies go to that exact origin. Pages on SiteDock's own origin are refused. Edit a favorite and choose Forget saved sign-in to remove its stored token. When you delete a favorite or move it to another origin from this browser, SiteDock drops the token once no favorite uses that origin. Signing out of SiteDock keeps saved tokens on the device.
 
-- Theme and display preferences use custom button/listbox dropdowns. Primary actions use flat colors.
+- Theme uses a palette icon button that opens a Light/Midnight/System pill, matching Home Automation. Display preferences use custom button/listbox dropdowns. Primary actions use flat colors.
 - Control hints use custom square, theme-aware boxes rather than browser tooltips. Longer group and editor help opens from an Info button by hover, keyboard focus, or tap. Escape, outside clicks, and focus leaving dismiss help; boxes stay within the viewport and work inside modals.
 - On iPhone and iPad, action hints stay hidden, including with a mouse or trackpad. Info buttons open help only when tapped or activated; screen-reader descriptions remain available.
 - Deletion requires confirmation in a styled modal; Cancel and Escape leave the favorite unchanged.

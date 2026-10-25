@@ -12,8 +12,8 @@ test('shows Add favorite hover feedback and opens the editor in both sidebar siz
     await expect(add).toBeEnabled();
 
     for (const theme of ['Light', 'Midnight']) {
-        await page.getByRole('combobox', { name: 'Theme' }).click();
-        await page.getByRole('option', { name: theme, exact: true }).click();
+        await page.getByRole('button', { name: /^Theme:/ }).click();
+        await page.getByRole('button', { name: theme, exact: true }).click();
         for (const minimized of [false, true]) {
             if (minimized) await page.getByRole('button', { name: 'Minimize favorites' }).click();
             await page.mouse.move(500, 300);
@@ -123,13 +123,13 @@ test('retains the supplied embedded apps and supports editing and themes', async
         const text = await frame!.locator('body').innerText();
         console.log(`Embedded app ${favorite.name}: ${text.trim().slice(0, 150).replace(/\s+/g, ' ')}`);
     }
-    await page.getByRole('combobox', { name: 'Theme' }).click();
-    await page.getByRole('option', { name: 'Light', exact: true }).click();
+    await page.getByRole('button', { name: /^Theme:/ }).click();
+    await page.getByRole('button', { name: 'Light', exact: true }).click();
     await expect(page.locator('meta[name="theme-color"]')).toHaveAttribute('content', '#ffffff');
     await expect(page.locator('html')).toHaveCSS('background-color', 'rgb(255, 255, 255)');
     await page.screenshot({ path: 'test-results/dashboard-light.png', fullPage: true });
-    await page.getByRole('combobox', { name: 'Theme' }).click();
-    await page.getByRole('option', { name: 'Dark', exact: true }).click();
+    await page.getByRole('button', { name: /^Theme:/ }).click();
+    await page.getByRole('button', { name: 'Midnight', exact: true }).click();
     await expect(page.locator('meta[name="theme-color"]')).toHaveAttribute('content', '#0f172a');
     await expect(page.locator('html')).toHaveCSS('background-color', 'rgb(15, 23, 42)');
     await expect(page.getByRole('button', { name: /sign out/i })).toHaveCSS('border-radius', '0px');
@@ -179,7 +179,7 @@ test('retains the supplied embedded apps and supports editing and themes', async
     expect(errors).toEqual([]);
 });
 
-test('custom dropdown stays inside narrow and tablet viewports', async ({ page }) => {
+test('theme popover stays inside narrow and tablet viewports', async ({ page }) => {
     await page.goto('/');
     for (const viewport of [
         { width: 320, height: 740 },
@@ -188,16 +188,16 @@ test('custom dropdown stays inside narrow and tablet viewports', async ({ page }
         { width: 1024, height: 768 },
     ]) {
         await page.setViewportSize(viewport);
-        await page.getByRole('combobox', { name: 'Theme' }).click();
-        const listbox = page.getByRole('listbox', { name: 'Theme' });
-        await expect(listbox).toBeVisible();
-        const rect = await listbox.boundingBox();
+        await page.getByRole('button', { name: /^Theme:/ }).click();
+        const popover = page.getByRole('dialog', { name: 'Appearance settings' });
+        await expect(popover).toBeVisible();
+        const rect = await popover.boundingBox();
         expect(rect!.x).toBeGreaterThanOrEqual(0);
         expect(rect!.x + rect!.width).toBeLessThanOrEqual(viewport.width);
         expect(rect!.y).toBeGreaterThanOrEqual(0);
         expect(rect!.y + rect!.height).toBeLessThanOrEqual(viewport.height);
         await page.keyboard.press('Escape');
-        await expect(listbox).toHaveCount(0);
+        await expect(popover).toHaveCount(0);
         expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
     }
 });
@@ -282,13 +282,13 @@ test('creates shared groups and filters favorites in expanded, minimized and mob
     await expect(page.getByRole('complementary', { name: 'Favorites' })).toHaveCSS('width', '50px');
     await page.screenshot({ path: 'test-results/groups-minimized.png', fullPage: true });
     await page.getByRole('button', { name: 'Expand favorites' }).click();
-    await page.getByRole('combobox', { name: 'Theme' }).click();
-    await page.getByRole('option', { name: 'Dark', exact: true }).click();
+    await page.getByRole('button', { name: /^Theme:/ }).click();
+    await page.getByRole('button', { name: 'Midnight', exact: true }).click();
     await groups.click();
     await page.screenshot({ path: 'test-results/groups-dark.png', fullPage: true });
     await page.keyboard.press('Escape');
-    await page.getByRole('combobox', { name: 'Theme' }).click();
-    await page.getByRole('option', { name: 'Light', exact: true }).click();
+    await page.getByRole('button', { name: /^Theme:/ }).click();
+    await page.getByRole('button', { name: 'Light', exact: true }).click();
     await groups.click();
     await page.screenshot({ path: 'test-results/groups-light.png', fullPage: true });
     await page.keyboard.press('Escape');
@@ -378,10 +378,10 @@ test('forwards Alt shortcuts from a cooperating second-origin frame and switches
     await page.locator('body').click({ position: { x: 600, y: 10 } });
     await page.keyboard.press('Alt+g');
     await expect(hud).toBeVisible();
-    for (const theme of ['Dark', 'Light']) {
+    for (const theme of ['Midnight', 'Light']) {
         await page.keyboard.press('Escape');
-        await page.getByRole('combobox', { name: 'Theme' }).click();
-        await page.getByRole('option', { name: theme, exact: true }).click();
+        await page.getByRole('button', { name: /^Theme:/ }).click();
+        await page.getByRole('button', { name: theme, exact: true }).click();
         await page.locator('body').click({ position: { x: 600, y: 10 } });
         await page.keyboard.press('Alt+g');
         await expect(hud).toBeVisible();

@@ -43,7 +43,7 @@ export function Dropdown<T extends string>({
             const anchor = trigger.current?.getBoundingClientRect();
             if (!anchor) return;
             const width = Math.min(Math.max(190, anchor.width), window.innerWidth - 16);
-            const height = Math.min(panel.current?.scrollHeight ?? 240, 240, window.innerHeight - 16);
+            const height = Math.min(panel.current?.scrollHeight ?? 240, window.innerHeight - 16);
             const below = window.innerHeight - anchor.bottom - 8;
             const top =
                 below >= height || below >= anchor.top - 8

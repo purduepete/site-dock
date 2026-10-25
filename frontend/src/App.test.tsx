@@ -731,8 +731,8 @@ describe('favorite edits and reconciliation', () => {
         expect(separator.getAttribute('aria-valuenow')).toBe('290');
         fireEvent.keyDown(separator, { key: 'Home' });
         expect(separator.getAttribute('aria-valuenow')).toBe('220');
-        await userEvent.click(screen.getByRole('combobox', { name: 'Theme' }));
-        await userEvent.click(screen.getByRole('option', { name: 'Light' }));
+        await userEvent.click(screen.getByRole('button', { name: 'Theme: Midnight' }));
+        await userEvent.click(screen.getByRole('button', { name: 'Light' }));
         expect(document.documentElement.dataset.theme).toBe('light');
         expect(localStorage.getItem('sitedock.theme')).toBe('light');
     });

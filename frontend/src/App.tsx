@@ -15,11 +15,11 @@ import {
     type Favorite,
     type Session,
     type Store,
-    type Theme,
 } from './model';
 import { Icon } from './Icon';
 import { useTheme } from './useTheme';
 import { Dropdown } from './Dropdown';
+import { ThemePicker } from './ThemePicker';
 import { DeleteFavoriteDialog } from './DeleteFavoriteDialog';
 import { forgetMissingIcons, SiteIcon } from './SiteIcon';
 import { CreateGroupDialog } from './CreateGroupDialog';
@@ -659,21 +659,7 @@ export function App() {
             }}
         />
     );
-    const themeControl = (
-        <div className="theme-control">
-            <span>Theme</span>
-            <Dropdown<Theme>
-                label="Theme"
-                value={theme}
-                onChange={setTheme}
-                options={[
-                    { value: 'system', label: 'System' },
-                    { value: 'light', label: 'Light' },
-                    { value: 'midnight', label: 'Midnight' },
-                ]}
-            />
-        </div>
-    );
+    const themeControl = <ThemePicker theme={theme} onChange={setTheme} />;
 
     if (!session?.authenticated)
         return (
@@ -962,17 +948,19 @@ export function App() {
                     )}
                 </nav>
                 <footer className="sidebar-footer">
-                    {themeControl}
                     <div className="account">
                         <span>
                             <small>{session.gatewayAuthenticated ? 'Access protected' : 'Signed in as'}</small>
                             {session.gatewayAuthenticated ? 'Gateway' : (session.username ?? 'Owner')}
                         </span>
-                        {!session.gatewayAuthenticated && (
-                            <button aria-label="Sign out" onClick={() => void logout()}>
-                                <Icon name="logout" />
-                            </button>
-                        )}
+                        <div className="account-actions">
+                            {themeControl}
+                            {!session.gatewayAuthenticated && (
+                                <button aria-label="Sign out" onClick={() => void logout()}>
+                                    <Icon name="logout" />
+                                </button>
+                            )}
+                        </div>
                     </div>
                 </footer>
             </aside>
