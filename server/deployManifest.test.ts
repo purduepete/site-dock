@@ -17,6 +17,7 @@ test('the manifest launches directly with explicit shared paths and a new exact 
     assert.deepEqual(manifest.build.commands, [
         { tool: 'npm', arguments: ['ci'], workingDirectory: '.' },
         { tool: 'npm', arguments: ['run', 'build'], workingDirectory: '.' },
+        { tool: 'npm', arguments: ['prune', '--omit=dev', '--ignore-scripts'], workingDirectory: '.' },
     ]);
     assert.equal(manifest.source.root, 'C:\\Files\\Dev\\main\\site-dock');
     assert.equal(manifest.launch.entrypoint, 'dist\\server\\main.js');
