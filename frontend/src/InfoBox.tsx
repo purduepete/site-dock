@@ -22,6 +22,9 @@ export function InfoBox({
     control?: ReactElement<HTMLAttributes<HTMLElement>>;
 }) {
     const id = useId();
+    const appleTouchDevice =
+        /iPad|iPhone|iPod/.test(navigator.userAgent) ||
+        (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
     const trigger = useRef<HTMLElement | null>(null);
     const box = useRef<HTMLDivElement>(null);
     const timer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
@@ -88,7 +91,7 @@ export function InfoBox({
         ...(control?.props['aria-expanded'] === undefined ? { 'aria-expanded': open } : {}),
         onPointerEnter: (event) => {
             control?.props.onPointerEnter?.(event);
-            if (event.pointerType === 'touch') return;
+            if (appleTouchDevice || event.pointerType === 'touch') return;
             trigger.current = event.currentTarget;
             cancelClose();
             setOpen(true);
@@ -99,6 +102,7 @@ export function InfoBox({
         },
         onFocus: (event) => {
             control?.props.onFocus?.(event);
+            if (appleTouchDevice) return;
             trigger.current = event.currentTarget;
             cancelClose();
             setOpen(true);

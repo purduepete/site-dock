@@ -1,5 +1,28 @@
 import { expect, test } from '@playwright/test';
 
+test('iPad desktop identity suppresses action hints but keeps Info help on tap', async ({ page }) => {
+    await page.addInitScript(() => {
+        Object.defineProperty(navigator, 'platform', { get: () => 'MacIntel' });
+        Object.defineProperty(navigator, 'maxTouchPoints', { get: () => 5 });
+    });
+    await page.goto('/');
+    await page.getByLabel(/username/i).fill('browser-owner');
+    await page.getByLabel(/^password/i).fill('browser-test-password-123');
+    await page.getByRole('button', { name: /sign in/i }).click();
+    const action = page.getByRole('button', { name: 'Minimize favorites' });
+    await action.hover();
+    await action.focus();
+    await expect(page.getByRole('tooltip')).toHaveCount(0);
+    const info = page.getByRole('button', { name: 'Groups information', exact: true });
+    await info.hover();
+    await info.focus();
+    await expect(page.getByRole('tooltip')).toHaveCount(0);
+    await info.click();
+    await expect(page.getByRole('tooltip')).toBeVisible();
+    await page.keyboard.press('Escape');
+    await expect(page.getByRole('tooltip')).toHaveCount(0);
+});
+
 test('site modal and shared group ordering work in both themes and on narrow screens', async ({ page }) => {
     await page.goto('/');
     await page.getByLabel(/username/i).fill('browser-owner');

@@ -221,6 +221,7 @@ Do not use `tailscale serve reset` if the node has other routes.
 
 - Theme and display preferences use custom button/listbox dropdowns. Primary actions use flat colors.
 - Control hints use custom square, theme-aware boxes rather than browser tooltips. Longer group and editor help opens from an Info button by hover, keyboard focus, or tap. Escape, outside clicks, and focus leaving dismiss help; boxes stay within the viewport and work inside modals.
+- On iPhone and iPad, action hints stay hidden, including with a mouse or trackpad. Info buttons open help only when tapped or activated; screen-reader descriptions remain available.
 - Deletion requires confirmation in a styled modal; Cancel and Escape leave the favorite unchanged.
 - A compact 44px desktop toolbar gives the embedded page the remaining space. Phone controls retain 44px touch targets.
 - Resize the sidebar to change how much space the selected page receives.
