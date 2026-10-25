@@ -25,7 +25,6 @@ import { forgetMissingIcons, SiteIcon } from './SiteIcon';
 import { CreateGroupDialog } from './CreateGroupDialog';
 import { GroupHud } from './GroupHud';
 import { ReorderGroupsDialog } from './ReorderGroupsDialog';
-import { Hint, InfoBox } from './InfoBox';
 import { forgetOrphanedTokens, handleTokenRequest, originOf, parseTokenRequest, readToken, writeToken } from './tokens';
 
 const localOrigins = ['localhost', '127.0.0.1', '[::1]'].flatMap((host) =>
@@ -212,13 +211,7 @@ function FavoriteForm({
                 </label>
                 <fieldset className="favorite-groups" disabled={busy}>
                     <legend>
-                        <span className="field-heading">
-                            Groups
-                            <InfoBox heading="Group membership">
-                                Select every group this site belongs to. Sites with no groups appear in All sites. Each
-                                group holds up to {GROUP_LIMIT} sites.
-                            </InfoBox>
-                        </span>
+                        <span className="field-heading">Groups</span>
                     </legend>
                     {[...groups, ...selectedGroups.filter((group) => !groups.includes(group))].map((group) => {
                         const checked = selectedGroups.includes(group);
@@ -256,13 +249,7 @@ function FavoriteForm({
                     )}
                 </fieldset>
                 <div className="dropdown-field">
-                    <span className="field-heading">
-                        Open preference
-                        <InfoBox heading="Opening sites">
-                            Some sites block embedding or require a separate tab for sign-in. HTTP sites always open
-                            separately when Site Dock uses HTTPS.
-                        </InfoBox>
-                    </span>
+                    <span className="field-heading">Open preference</span>
                     <Dropdown
                         label="Open preference"
                         value={mode}
@@ -807,23 +794,21 @@ export function App() {
                         <span className="brand-mark mobile-only">
                             <img className="brand-icon" src="/favicon.svg" alt="" />
                         </span>
-                        <Hint text={minimized ? 'Expand sidebar' : 'Minimize sidebar'}>
-                            <button
-                                type="button"
-                                className="brand-mark brand-toggle desktop-only"
-                                aria-label={minimized ? 'Expand favorites' : 'Minimize favorites'}
-                                aria-controls="favorites-sidebar"
-                                aria-expanded={!minimized}
-                                onClick={() => {
-                                    const next = !minimized;
-                                    setMinimized(next);
-                                    setResizing(false);
-                                    savePreference('sidebar-minimized', String(next));
-                                }}
-                            >
-                                <img className="brand-icon" src="/favicon.svg" alt="" />
-                            </button>
-                        </Hint>
+                        <button
+                            type="button"
+                            className="brand-mark brand-toggle desktop-only"
+                            aria-label={minimized ? 'Expand favorites' : 'Minimize favorites'}
+                            aria-controls="favorites-sidebar"
+                            aria-expanded={!minimized}
+                            onClick={() => {
+                                const next = !minimized;
+                                setMinimized(next);
+                                setResizing(false);
+                                savePreference('sidebar-minimized', String(next));
+                            }}
+                        >
+                            <img className="brand-icon" src="/favicon.svg" alt="" />
+                        </button>
                         Site Dock
                     </span>
                     <button className="mobile-only" aria-label="Close favorites" onClick={() => setSidebar(false)}>
@@ -856,7 +841,6 @@ export function App() {
                 <div className="group-filter">
                     <Dropdown
                         label="Group"
-                        hint
                         value={groupFilter}
                         options={[
                             { value: 'all', label: 'All sites' },
@@ -877,10 +861,6 @@ export function App() {
                             else setCreatingGroup(true);
                         }}
                     />
-                    <InfoBox heading="Groups">
-                        Choose a group here or press Alt+G to search. Create group adds a group. Reorder groups changes
-                        the shared order with up/down buttons; All sites stays first.
-                    </InfoBox>
                 </div>
                 <nav className="favorites-list" aria-label="Favorite websites">
                     {visibleFavorites.map((favorite, index) => {
@@ -899,88 +879,76 @@ export function App() {
                                         </span>
                                     )}
                                     {isExternal(favorite) ? (
-                                        <Hint text={key ? `${favorite.name} (Alt+${key})` : favorite.name}>
-                                            <a
-                                                ref={(element) => {
-                                                    if (element) favoriteControls.current.set(favorite.id, element);
-                                                    else favoriteControls.current.delete(favorite.id);
-                                                }}
-                                                className="favorite-select"
-                                                aria-label={`Open ${favorite.name} in a separate tab`}
-                                                aria-keyshortcuts={key ? `Alt+${key}` : undefined}
-                                                href={favorite.url}
-                                                target="_blank"
-                                                rel="noopener noreferrer"
-                                                aria-current={selected === favorite.id ? 'page' : undefined}
-                                                onClick={() => choose(favorite.id)}
-                                            >
-                                                <span>{favorite.name}</span>
-                                                <small>Separate tab{key && <kbd>Alt+{key}</kbd>}</small>
-                                            </a>
-                                        </Hint>
+                                        <a
+                                            ref={(element) => {
+                                                if (element) favoriteControls.current.set(favorite.id, element);
+                                                else favoriteControls.current.delete(favorite.id);
+                                            }}
+                                            className="favorite-select"
+                                            aria-label={`Open ${favorite.name} in a separate tab`}
+                                            aria-keyshortcuts={key ? `Alt+${key}` : undefined}
+                                            href={favorite.url}
+                                            target="_blank"
+                                            rel="noopener noreferrer"
+                                            aria-current={selected === favorite.id ? 'page' : undefined}
+                                            onClick={() => choose(favorite.id)}
+                                        >
+                                            <span>{favorite.name}</span>
+                                            <small>Separate tab{key && <kbd>Alt+{key}</kbd>}</small>
+                                        </a>
                                     ) : (
-                                        <Hint text={key ? `${favorite.name} (Alt+${key})` : favorite.name}>
-                                            <button
-                                                ref={(element) => {
-                                                    if (element) favoriteControls.current.set(favorite.id, element);
-                                                    else favoriteControls.current.delete(favorite.id);
-                                                }}
-                                                className="favorite-select"
-                                                aria-label={favorite.name}
-                                                aria-keyshortcuts={key ? `Alt+${key}` : undefined}
-                                                aria-current={selected === favorite.id ? 'page' : undefined}
-                                                onClick={() => choose(favorite.id)}
-                                            >
-                                                <span>{favorite.name}</span>
-                                                <small>
-                                                    {new URL(favorite.url).hostname}
-                                                    {key && <kbd>Alt+{key}</kbd>}
-                                                </small>
-                                            </button>
-                                        </Hint>
+                                        <button
+                                            ref={(element) => {
+                                                if (element) favoriteControls.current.set(favorite.id, element);
+                                                else favoriteControls.current.delete(favorite.id);
+                                            }}
+                                            className="favorite-select"
+                                            aria-label={favorite.name}
+                                            aria-keyshortcuts={key ? `Alt+${key}` : undefined}
+                                            aria-current={selected === favorite.id ? 'page' : undefined}
+                                            onClick={() => choose(favorite.id)}
+                                        >
+                                            <span>{favorite.name}</span>
+                                            <small>
+                                                {new URL(favorite.url).hostname}
+                                                {key && <kbd>Alt+{key}</kbd>}
+                                            </small>
+                                        </button>
                                     )}
                                     {isExternal(favorite) && <Icon name="external" />}
                                 </div>
                                 <div className="favorite-actions">
-                                    <Hint text="Move up">
-                                        <button
-                                            aria-label={`Move ${favorite.name} up`}
-                                            disabled={index === 0 || busy || !!conflict}
-                                            onClick={() => reorder(favorite.id, index - 1)}
-                                        >
-                                            <Icon name="up" />
-                                        </button>
-                                    </Hint>
-                                    <Hint text="Move down">
-                                        <button
-                                            aria-label={`Move ${favorite.name} down`}
-                                            disabled={index === visibleFavorites.length - 1 || busy || !!conflict}
-                                            onClick={() => reorder(favorite.id, index + 1)}
-                                        >
-                                            <Icon name="down" />
-                                        </button>
-                                    </Hint>
-                                    <Hint text="Edit favorite">
-                                        <button
-                                            aria-label={`Edit ${favorite.name}`}
-                                            disabled={busy}
-                                            onClick={() => {
-                                                setEditor(favorite);
-                                                setSidebar(false);
-                                            }}
-                                        >
-                                            <Icon name="edit" />
-                                        </button>
-                                    </Hint>
-                                    <Hint text="Delete favorite">
-                                        <button
-                                            aria-label={`Delete ${favorite.name}`}
-                                            disabled={busy || !!conflict}
-                                            onClick={() => setDeleteTarget(favorite)}
-                                        >
-                                            <Icon name="trash" />
-                                        </button>
-                                    </Hint>
+                                    <button
+                                        aria-label={`Move ${favorite.name} up`}
+                                        disabled={index === 0 || busy || !!conflict}
+                                        onClick={() => reorder(favorite.id, index - 1)}
+                                    >
+                                        <Icon name="up" />
+                                    </button>
+                                    <button
+                                        aria-label={`Move ${favorite.name} down`}
+                                        disabled={index === visibleFavorites.length - 1 || busy || !!conflict}
+                                        onClick={() => reorder(favorite.id, index + 1)}
+                                    >
+                                        <Icon name="down" />
+                                    </button>
+                                    <button
+                                        aria-label={`Edit ${favorite.name}`}
+                                        disabled={busy}
+                                        onClick={() => {
+                                            setEditor(favorite);
+                                            setSidebar(false);
+                                        }}
+                                    >
+                                        <Icon name="edit" />
+                                    </button>
+                                    <button
+                                        aria-label={`Delete ${favorite.name}`}
+                                        disabled={busy || !!conflict}
+                                        onClick={() => setDeleteTarget(favorite)}
+                                    >
+                                        <Icon name="trash" />
+                                    </button>
                                 </div>
                             </div>
                         );
@@ -1001,11 +969,9 @@ export function App() {
                             {session.gatewayAuthenticated ? 'Gateway' : (session.username ?? 'Owner')}
                         </span>
                         {!session.gatewayAuthenticated && (
-                            <Hint text="Sign out of Site Dock">
-                                <button aria-label="Sign out" onClick={() => void logout()}>
-                                    <Icon name="logout" />
-                                </button>
-                            </Hint>
+                            <button aria-label="Sign out" onClick={() => void logout()}>
+                                <Icon name="logout" />
+                            </button>
                         )}
                     </div>
                 </footer>
@@ -1063,24 +1029,20 @@ export function App() {
                     <div className="toolbar">
                         {current && (
                             <>
-                                <Hint text="Reload from the saved address">
-                                    <button
-                                        disabled={isExternal(current)}
-                                        aria-label="Reload selected site"
-                                        onClick={() =>
-                                            setFrames((previous) =>
-                                                previous.map((frame) =>
-                                                    frame.id === selected
-                                                        ? { ...frame, version: frame.version + 1 }
-                                                        : frame
-                                                )
+                                <button
+                                    disabled={isExternal(current)}
+                                    aria-label="Reload selected site"
+                                    onClick={() =>
+                                        setFrames((previous) =>
+                                            previous.map((frame) =>
+                                                frame.id === selected ? { ...frame, version: frame.version + 1 } : frame
                                             )
-                                        }
-                                    >
-                                        <Icon name="reload" />
-                                        <span className="toolbar-label">Reload</span>
-                                    </button>
-                                </Hint>
+                                        )
+                                    }
+                                >
+                                    <Icon name="reload" />
+                                    <span className="toolbar-label">Reload</span>
+                                </button>
                                 <a
                                     className="button"
                                     href={current.url}

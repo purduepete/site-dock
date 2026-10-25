@@ -655,9 +655,6 @@ p {
     .sidebar-minimized .group-filter {
         padding: 2px 3px 8px;
     }
-    .sidebar-minimized .group-filter > .info-box-trigger {
-        display: none;
-    }
     .sidebar-minimized .group-filter .dropdown-trigger {
         padding: 7px;
         min-height: 36px;

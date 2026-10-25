@@ -119,6 +119,40 @@ async function ready() {
 }
 
 describe('dashboard sessions and embedded pages', () => {
+    it('does not show tooltips in the dashboard or favorite editor', async () => {
+        await ready();
+        const group = screen.getByRole('combobox', { name: 'Group' });
+        const example = screen.getByRole('button', { name: 'Example' });
+        const external = screen.getByRole('link', { name: 'Open News in a separate tab' });
+        const sidebarToggle = screen.getByRole('button', { name: 'Minimize favorites' });
+        const signOut = screen.getByRole('button', { name: 'Sign out' });
+        const reload = screen.getByRole('button', { name: 'Reload selected site' });
+        expect(group.getAttribute('aria-describedby')).toBeNull();
+        expect(example.getAttribute('aria-describedby')).toBeNull();
+        expect(external.getAttribute('aria-describedby')).toBeNull();
+        expect(sidebarToggle.getAttribute('aria-describedby')).toBeNull();
+        expect(signOut.getAttribute('aria-describedby')).toBeNull();
+
+        for (const control of [
+            group,
+            example,
+            external,
+            sidebarToggle,
+            signOut,
+            reload,
+            screen.getByRole('button', { name: 'Move Example down' }),
+            screen.getByRole('button', { name: 'Edit Example' }),
+            screen.getByRole('button', { name: 'Delete Example' }),
+        ]) {
+            await userEvent.hover(control);
+            expect(screen.queryByRole('tooltip')).toBeNull();
+        }
+
+        await userEvent.click(screen.getByRole('button', { name: 'Edit Example' }));
+        expect(screen.queryByRole('button', { name: 'Group membership information' })).toBeNull();
+        expect(screen.queryByRole('button', { name: 'Opening sites information' })).toBeNull();
+    });
+
     it('edits in a modal, keeps its dropdown inside, and returns focus on cancel', async () => {
         await ready();
         const edit = screen.getByRole('button', { name: 'Edit Example' });
@@ -717,8 +751,7 @@ describe('ten-site shortcuts and group limit', () => {
         await readyWith('Site 1');
         expect(pills()).toEqual(['1', '2', '3', '4', '5', '6', '7', '8', '9', '0']);
         expect(screen.getByRole('button', { name: 'Site 10' }).getAttribute('aria-keyshortcuts')).toBe('Alt+0');
-        const shortcutDescription = screen.getByRole('button', { name: 'Site 10' }).getAttribute('aria-describedby');
-        expect(document.getElementById(shortcutDescription!)?.textContent).toBe('Site 10 (Alt+0)');
+        expect(screen.getByRole('button', { name: 'Site 10' }).getAttribute('aria-describedby')).toBeNull();
         expect(screen.getByRole('button', { name: 'Site 10' }).getAttribute('title')).toBeNull();
         expect(screen.getByRole('button', { name: 'Site 11' }).getAttribute('aria-keyshortcuts')).toBeNull();
         expect(fireEvent.keyDown(window, { code: 'Digit0', altKey: true })).toBe(false);

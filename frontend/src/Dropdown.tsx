@@ -1,7 +1,6 @@
 import { useEffect, useId, useLayoutEffect, useRef, useState, type KeyboardEvent } from 'react';
 import { createPortal } from 'react-dom';
 import { Icon } from './Icon';
-import { Hint } from './InfoBox';
 
 type Option<T extends string> = { value: T; label: string };
 
@@ -10,13 +9,11 @@ export function Dropdown<T extends string>({
     value,
     options,
     onChange,
-    hint = false,
 }: {
     label: string;
     value: T;
     options: readonly Option<T>[];
     onChange: (value: T) => void;
-    hint?: boolean;
 }) {
     const id = useId();
     const trigger = useRef<HTMLButtonElement>(null);
@@ -134,7 +131,7 @@ export function Dropdown<T extends string>({
     );
     return (
         <div className="dropdown">
-            {hint ? <Hint text={options[selected]?.label ?? label}>{control}</Hint> : control}
+            {control}
             {open &&
                 createPortal(
                     <div
