@@ -9,6 +9,7 @@ const foundFor = 7 * day;
 
 type Entry = { src: string | null; at: number };
 let entries: Record<string, Entry> | null = null;
+let pageLoad = crypto.randomUUID();
 // Holding each loaded image keeps it in the page's image cache, so remounting an icon after a
 // group switch reuses it instead of asking the site again.
 const loaded = new Map<string, HTMLImageElement>();
@@ -81,16 +82,18 @@ export function SiteIcon({ url, name }: { url: string; name: string }) {
     if (state.url !== url) setState({ url, attempt: 0, list: candidates(url) });
     const { list, attempt } = state;
     const source = state.url === url ? list?.sources[attempt] : undefined;
+    const imageSource = source ? new URL(source) : null;
+    imageSource?.searchParams.set('_sitedock', pageLoad);
     return (
         <span className="site-icon" aria-hidden="true">
-            {source && list ? (
+            {source && imageSource && list ? (
                 <img
                     key={source}
-                    src={source}
+                    src={imageSource.href}
                     alt=""
                     referrerPolicy="no-referrer"
                     onLoad={() => {
-                        keep(source);
+                        keep(imageSource.href);
                         if (known(list.origin) !== source) remember(list.origin, source);
                     }}
                     onError={() => {
@@ -116,4 +119,5 @@ export function SiteIcon({ url, name }: { url: string; name: string }) {
 export function resetIconCache() {
     entries = null;
     loaded.clear();
+    pageLoad = crypto.randomUUID();
 }

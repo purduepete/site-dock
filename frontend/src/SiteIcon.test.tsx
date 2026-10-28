@@ -22,12 +22,18 @@ afterEach(() => {
     vi.useRealTimers();
 });
 
-const src = (container: HTMLElement) => container.querySelector('img')?.getAttribute('src') ?? null;
+const src = (container: HTMLElement) => {
+    const value = container.querySelector('img')?.getAttribute('src');
+    if (!value) return null;
+    const url = new URL(value);
+    url.searchParams.delete('_sitedock');
+    return url.href;
+};
 
 it('tries site favicon formats directly without a referrer and falls back to circular initials', () => {
     const { container } = render(<SiteIcon url="https://example.com/path" name="Example Site" />);
     const image = container.querySelector('img')!;
-    expect(image.getAttribute('src')).toBe('https://example.com/favicon.svg');
+    expect(src(container)).toBe('https://example.com/favicon.svg');
     expect(image.getAttribute('referrerpolicy')).toBe('no-referrer');
     fireEvent.error(image);
     expect(src(container)).toBe('https://example.com/favicon.ico');
@@ -55,6 +61,27 @@ it('remembers the icon that loaded, so a remount skips the paths that failed', (
     resetIconCache();
     const reloaded = render(<SiteIcon url="https://example.com/" name="Example" />);
     expect(src(reloaded.container)).toBe('https://example.com/apple-touch-icon.png');
+});
+
+it('refreshes image URLs on page reload while reusing them across group remounts', () => {
+    const first = render(<SiteIcon url="https://example.com/" name="Example" />);
+    const firstImage = first.container.querySelector('img')!;
+    const firstUrl = firstImage.src;
+    expect(new URL(firstUrl).searchParams.get('_sitedock')).toBeTruthy();
+    fireEvent.load(firstImage);
+    expect(JSON.parse(stored.get('sitedock.icons')!)['https://example.com'].src).toBe(
+        'https://example.com/favicon.svg'
+    );
+    first.unmount();
+
+    const remounted = render(<SiteIcon url="https://example.com/other" name="Example" />);
+    expect(remounted.container.querySelector('img')!.src).toBe(firstUrl);
+    remounted.unmount();
+
+    resetIconCache();
+    const reloaded = render(<SiteIcon url="https://example.com/" name="Example" />);
+    expect(src(reloaded.container)).toBe('https://example.com/favicon.svg');
+    expect(reloaded.container.querySelector('img')!.src).not.toBe(firstUrl);
 });
 
 it('keeps "no icon" for this session only and retries after a sign-in', () => {
