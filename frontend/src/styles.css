@@ -865,19 +865,26 @@ iframe {
     background: var(--bg);
 }
 /* Inactive frames stay laid out and painted so switching back does not repaint from scratch. */
+/* Switching sites matches the route fade: the old frame fades out over 250ms, then the new one
+   fades in over 600ms. Visibility flips after the fade-out so only one frame shows at a time. */
 .site-frame {
     visibility: hidden;
     opacity: 0;
     pointer-events: none;
-}
-.site-frame.ready {
-    opacity: 1;
-    transition: opacity 140ms ease;
+    transition:
+        opacity 250ms cubic-bezier(0.22, 0.61, 0.36, 1),
+        visibility 0s linear 250ms;
 }
 .site-frame.active {
-    visibility: visible;
     pointer-events: auto;
     z-index: 1;
+}
+.site-frame.active.ready {
+    visibility: visible;
+    opacity: 1;
+    transition:
+        opacity 600ms ease-out 250ms,
+        visibility 0s linear 250ms;
 }
 .site-frame.first-reveal {
     transition: none;
@@ -932,6 +939,10 @@ iframe {
     }
 }
 @media (prefers-reduced-motion: reduce) {
+    .site-frame,
+    .site-frame.active.ready {
+        transition: none;
+    }
     .site-frame.first-reveal,
     .initial-content,
     .loading-indicator,

@@ -42,6 +42,7 @@ export function EmbeddedSite({
                 className={`site-frame${active ? ' active' : ''}${loaded ? ' loaded' : ''}${ready ? ' ready' : ''}${firstReveal ? ' first-reveal' : ''}`}
                 aria-hidden={active ? undefined : true}
                 inert={!active}
+                onAnimationEnd={() => setFirstReveal(false)}
                 onLoad={() => {
                     setLoaded(true);
                     setReady(true);
