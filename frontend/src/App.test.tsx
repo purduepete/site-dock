@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { App } from './App';
 import type { Favorite } from './model';
@@ -111,12 +111,97 @@ beforeEach(() => {
 });
 afterEach(() => {
     cleanup();
+    vi.useRealTimers();
     vi.unstubAllGlobals();
 });
 async function ready() {
     render(<App />);
     await screen.findByTitle('Example');
 }
+
+describe('startup loading', () => {
+    it('keeps one continuous indicator across session and favorites requests', async () => {
+        const fetchFixture = fetch;
+        vi.useFakeTimers();
+        vi.stubGlobal(
+            'fetch',
+            vi.fn(async (...args: Parameters<typeof fetch>) => {
+                if (args[0] === '/api/session' || args[0] === '/api/favorites') {
+                    await new Promise((resolve) => setTimeout(resolve, 150));
+                }
+                return fetchFixture(...args);
+            })
+        );
+        render(<App />);
+        expect(screen.queryByRole('textbox', { name: /username/i })).toBeNull();
+        await act(() => vi.advanceTimersByTimeAsync(150));
+        expect(screen.queryByRole('status', { name: 'Loading Site Dock' })).toBeNull();
+        await act(() => vi.advanceTimersByTimeAsync(100));
+        const indicator = screen.getByRole('status', { name: 'Loading Site Dock' });
+        await act(() => vi.advanceTimersByTimeAsync(49));
+        expect(screen.getByRole('status', { name: 'Loading Site Dock' })).toBe(indicator);
+        await act(() => vi.advanceTimersByTimeAsync(1));
+        expect(screen.queryByRole('status', { name: 'Loading Site Dock' })).toBeNull();
+        const frame = screen.getByTitle('Example');
+        expect(frame.closest('.initial-content')).toBeNull();
+    });
+
+    it('stops loading after session failure without flashing login and supports retry', async () => {
+        const fetchFixture = fetch;
+        vi.stubGlobal('fetch', vi.fn().mockRejectedValue(new Error('Connection unavailable')));
+        render(<App />);
+        expect((await screen.findByRole('alert')).textContent).toContain('Could not check your session');
+        expect(screen.queryByRole('status', { name: 'Loading Site Dock' })).toBeNull();
+        expect(screen.queryByRole('textbox', { name: /username/i })).toBeNull();
+        vi.stubGlobal('fetch', fetchFixture);
+        await userEvent.click(screen.getByRole('button', { name: 'Retry connection' }));
+        await screen.findByTitle('Example');
+    });
+
+    it('stops loading after favorites failure, keeps navigation, and retries empty results once', async () => {
+        const fetchFixture = fetch;
+        vi.stubGlobal(
+            'fetch',
+            vi.fn(async (...args: Parameters<typeof fetch>) => {
+                if (args[0] === '/api/favorites') throw new Error('Favorites unavailable');
+                return fetchFixture(...args);
+            })
+        );
+        render(<App />);
+        expect((await screen.findByRole('alert')).textContent).toContain('Could not load favorites');
+        expect(screen.queryByRole('status', { name: 'Loading Site Dock' })).toBeNull();
+        expect(screen.queryByText('Your sites start here.')).toBeNull();
+        const sidebar = screen.getByRole('complementary', { name: 'Favorites' });
+        data = [];
+        vi.stubGlobal('fetch', fetchFixture);
+        await userEvent.click(screen.getByRole('button', { name: 'Retry' }));
+        const heading = await screen.findByText('Your sites start here.');
+        expect(heading.closest('.initial-content')).toBeTruthy();
+        fireEvent.animationEnd(heading.closest('section')!);
+        fireEvent(window, new Event('focus'));
+        await waitFor(() => expect(requests.filter(({ path }) => path === '/api/session')).toHaveLength(2));
+        expect(screen.getByRole('complementary', { name: 'Favorites' })).toBe(sidebar);
+        expect(heading.closest('.initial-content')).toBeNull();
+    });
+
+    it('returns to login without a stuck spinner when initial favorites returns 401', async () => {
+        const fetchFixture = fetch;
+        vi.stubGlobal(
+            'fetch',
+            vi.fn(async (...args: Parameters<typeof fetch>) => {
+                if (args[0] === '/api/favorites') {
+                    return new Response(JSON.stringify({ error: 'Session expired' }), { status: 401 });
+                }
+                return fetchFixture(...args);
+            })
+        );
+        render(<App />);
+        await screen.findByRole('textbox', { name: /username/i });
+        expect(screen.getByRole('alert').textContent).toContain('Your session ended');
+        expect(screen.queryByRole('status', { name: 'Loading Site Dock' })).toBeNull();
+        expect(document.querySelector('iframe')).toBeNull();
+    });
+});
 
 describe('dashboard sessions and embedded pages', () => {
     it('does not show tooltips in the dashboard or favorite editor', async () => {

@@ -69,6 +69,8 @@ SiteDock follows the existing app styling: self-hosted Roboto Flex, square corne
 
 The font is bundled from `@fontsource-variable/roboto-flex` with its open-source license. No remote font request is needed. The prepaint script and active theme hook both update the iOS `theme-color`.
 
+Initial session/favorites loading and each embedded site's first visit show a themed spinner only after 250ms. The spinner and initial content fade in over 0.6s; reduced motion disables fades and rotation. Previously visited frames stay mounted when switching sites. Embedded sites reveal on their load event or the existing 4-second fallback, which does not confirm that the site's content loaded successfully. Use Open tab if an embedded site stays blank. Reloading a revealed site keeps the short reveal without replaying its initial spinner or entrance.
+
 ## This installation
 
 - Production: `https://jimbrownhome.tail8ad282.ts.net:9443/` on jimbrownhome (443 there belongs to another app), started at logon by the `SiteDock` scheduled task.

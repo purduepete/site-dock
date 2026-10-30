@@ -25,6 +25,8 @@ import { forgetMissingIcons, SiteIcon } from './SiteIcon';
 import { CreateGroupDialog } from './CreateGroupDialog';
 import { GroupHud } from './GroupHud';
 import { ReorderGroupsDialog } from './ReorderGroupsDialog';
+import { LoadingSpinner } from './LoadingSpinner';
+import { EmbeddedSite } from './EmbeddedSite';
 import { forgetOrphanedTokens, handleTokenRequest, originOf, parseTokenRequest, readToken, writeToken } from './tokens';
 
 const localOrigins = ['localhost', '127.0.0.1', '[::1]'].flatMap((host) =>
@@ -298,6 +300,12 @@ export function App() {
     const [theme, setTheme] = useTheme();
     const [session, setSession] = useState<Session | null>(null);
     const [store, setStore] = useState<Store | null>(null);
+    const [checkingSession, setCheckingSession] = useState(true);
+    const [favoritesFailed, setFavoritesFailed] = useState(false);
+    const [loginEntrance, setLoginEntrance] = useState(false);
+    const [resultsEntrance, setResultsEntrance] = useState(false);
+    const enteredLogin = useRef(false);
+    const enteredResults = useRef(false);
     const [draft, setDraft] = useState<Favorite[]>([]);
     const [groups, setGroups] = useState<string[]>([]);
     const [groupFilter, setGroupFilter] = useState(() => {
@@ -318,7 +326,7 @@ export function App() {
     const [editor, setEditor] = useState<Favorite | null>(null);
     const [deleteTarget, setDeleteTarget] = useState<Favorite | null>(null);
     const [frames, setFrames] = useState<Frame[]>([]);
-    const [loadedFrames, setLoadedFrames] = useState<ReadonlySet<string>>(() => new Set());
+    const revealedSites = useRef(new Set<string>());
     const [announcement, setAnnouncement] = useState('');
     const [loadAttempt, setLoadAttempt] = useState(0);
     const generation = useRef(0);
@@ -341,6 +349,19 @@ export function App() {
         [draft, groupFilter]
     );
     const current = draft.find((item) => item.id === selected);
+    const startupLoading =
+        (session === null && checkingSession) || (!!session?.authenticated && store === null && !favoritesFailed);
+
+    useEffect(() => {
+        if (session?.authenticated === false && !enteredLogin.current) {
+            enteredLogin.current = true;
+            setLoginEntrance(true);
+        } else if (session?.authenticated !== false) setLoginEntrance(false);
+        if (store && (current || visibleFavorites.length === 0) && !enteredResults.current) {
+            enteredResults.current = true;
+            setResultsEntrance(!current || isExternal(current));
+        } else setResultsEntrance(false);
+    }, [session?.authenticated, store, current, visibleFavorites.length]);
 
     // Native keys and forwarded iframe messages share this dispatcher, which re-checks auth and modal state.
     function runCommand(command: Command, forwarded: boolean) {
@@ -448,6 +469,8 @@ export function App() {
         auth.current = false;
         saving.current = false;
         setSession({ authenticated: false });
+        setCheckingSession(false);
+        setFavoritesFailed(false);
         setStore(null);
         setDraft([]);
         setGroups([]);
@@ -468,6 +491,8 @@ export function App() {
     async function checkSession() {
         const request = ++requestNumber.current;
         const epoch = generation.current;
+        setCheckingSession(true);
+        if (!auth.current) setError('');
         try {
             const result = await api<Session>('session');
             if (request !== requestNumber.current || epoch !== generation.current) return;
@@ -483,6 +508,8 @@ export function App() {
                     clearSession('Your session ended. Sign in again.');
                 else setError(`Could not check your session. ${message(cause)}`);
             }
+        } finally {
+            if (request === requestNumber.current && epoch === generation.current) setCheckingSession(false);
         }
     }
 
@@ -508,6 +535,7 @@ export function App() {
         if (!session?.authenticated) return;
         let active = true;
         const epoch = generation.current;
+        setFavoritesFailed(false);
         void api<Store>('favorites')
             .then((result) => {
                 if (active && epoch === generation.current) {
@@ -521,7 +549,10 @@ export function App() {
                 if (!active || epoch !== generation.current) return;
                 if (cause instanceof ApiError && cause.status === 401)
                     clearSession('Your session ended. Sign in again.');
-                else setError(`Could not load favorites. ${message(cause)}`);
+                else {
+                    setFavoritesFailed(true);
+                    setError(`Could not load favorites. ${message(cause)}`);
+                }
             });
         return () => {
             active = false;
@@ -660,10 +691,14 @@ export function App() {
         />
     );
     const themeControl = <ThemePicker theme={theme} onChange={setTheme} />;
+    const startupIndicator = (
+        <LoadingSpinner isLoading={startupLoading} label="Loading Site Dock" className="startup-loading" />
+    );
 
     if (!session?.authenticated)
         return (
             <div className="login-page">
+                {startupIndicator}
                 <header className="login-header">
                     <span className="wordmark">
                         <span className="brand-mark">
@@ -685,18 +720,21 @@ export function App() {
                         </div>
                     )}
                     {session === null ? (
-                        <>
-                            <p role="status">Checking your session…</p>
-                            {error && <button onClick={() => void checkSession()}>Retry connection</button>}
-                        </>
+                        !checkingSession &&
+                        error && <button onClick={() => void checkSession()}>Retry connection</button>
                     ) : (
-                        <Login
-                            onLogin={async (username, password) => {
-                                setError('');
-                                await api('login', { username, password });
-                                await checkSession();
-                            }}
-                        />
+                        <div
+                            className={loginEntrance ? 'initial-content' : undefined}
+                            onAnimationEnd={() => setLoginEntrance(false)}
+                        >
+                            <Login
+                                onLogin={async (username, password) => {
+                                    setError('');
+                                    await api('login', { username, password });
+                                    await checkSession();
+                                }}
+                            />
+                        </div>
                     )}
                     {error.includes('server sign-out') && <button onClick={() => void logout()}>Retry sign-out</button>}
                     <p className="login-note">Private access · Favorites shared across devices</p>
@@ -713,6 +751,7 @@ export function App() {
             className={`app ${resizing ? 'interacting' : ''} ${minimized ? 'sidebar-minimized' : ''}`}
             style={{ '--sidebar-width': `${width}px` } as CSSProperties}
         >
+            {startupIndicator}
             {creatingGroup && (
                 <CreateGroupDialog
                     groups={store?.groups ?? []}
@@ -1076,11 +1115,16 @@ export function App() {
                             </button>
                         </div>
                     )}
-                    {!store && (
-                        <p role="status">
-                            Loading favorites…{' '}
-                            <button onClick={() => setLoadAttempt((value) => value + 1)}>Retry</button>
-                        </p>
+                    {!store && favoritesFailed && (
+                        <button
+                            onClick={() => {
+                                setFavoritesFailed(false);
+                                setError('');
+                                setLoadAttempt((value) => value + 1);
+                            }}
+                        >
+                            Retry
+                        </button>
                     )}
                     {editor && (
                         <FavoriteForm
@@ -1128,9 +1172,14 @@ export function App() {
                         const key = `${frame.id}:${frame.url}:${frame.version}`;
                         const active = selected === frame.id;
                         return (
-                            <iframe
+                            <EmbeddedSite
                                 key={key}
-                                ref={(element) => {
+                                identity={`${frame.id}:${frame.url}`}
+                                url={frame.url}
+                                label={draft.find((item) => item.id === frame.id)?.name ?? 'Favorite website'}
+                                active={active}
+                                revealedSites={revealedSites.current}
+                                frameRef={(element) => {
                                     if (!element) return;
                                     frameElements.current.set(frame.id, element);
                                     return () => {
@@ -1138,23 +1187,14 @@ export function App() {
                                             frameElements.current.delete(frame.id);
                                     };
                                 }}
-                                title={draft.find((item) => item.id === frame.id)?.name ?? 'Favorite website'}
-                                src={frame.url}
-                                className={`site-frame${active ? ' active' : ''}${loadedFrames.has(key) ? ' loaded' : ''}`}
-                                aria-hidden={active ? undefined : true}
-                                inert={!active}
-                                onLoad={() =>
-                                    setLoadedFrames((previous) =>
-                                        previous.has(key) ? previous : new Set(previous).add(key)
-                                    )
-                                }
-                                sandbox="allow-scripts allow-same-origin allow-forms allow-popups allow-popups-to-escape-sandbox"
-                                referrerPolicy="no-referrer"
                             />
                         );
                     })}
                     {current && isExternal(current) && (
-                        <section className="empty-state">
+                        <section
+                            className={`empty-state${resultsEntrance ? ' initial-content' : ''}`}
+                            onAnimationEnd={() => setResultsEntrance(false)}
+                        >
                             <div className="state-icon">
                                 <Icon name="external" />
                             </div>
@@ -1178,8 +1218,11 @@ export function App() {
                             <p className="muted">Your browser may require a separate sign-in.</p>
                         </section>
                     )}
-                    {!current && store && (
-                        <section className="empty-state">
+                    {!current && store && visibleFavorites.length === 0 && (
+                        <section
+                            className={`empty-state${resultsEntrance ? ' initial-content' : ''}`}
+                            onAnimationEnd={() => setResultsEntrance(false)}
+                        >
                             <div className="state-icon">
                                 <Icon name="plus" />
                             </div>
