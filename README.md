@@ -81,6 +81,12 @@ Initial session/favorites loading and each embedded site's first visit show a th
 
 Validation includes server and frontend tests, Microsoft Edge integration tests, TypeScript checks, production build, development UI/API proxy, and Tailscale HTTPS health. Browser checks rendered Ferry Tracker, SmartDevices, and FitTrack's token-entry screen, and opened ESPN in a separate tab. The UI checks cover custom dropdown placement, groups across browsers and sidebar sizes, modal confirmation and focus restoration, flat action colors, and the 44px desktop toolbar. Source-app authenticated sessions and a second device still require your checks.
 
+`npm run test:startup` exercises the legacy Windows launcher with isolated servers.
+Successful starts use its 15-second readiness budget; the foreign-listener test
+keeps a 2-second failure deadline. Readiness requires the configured loopback
+listener (remote port 0) to belong to the server PID, even when Windows misreports
+its TCP state. Failed test runs include the startup log in their diagnostics.
+
 ## Requirements
 
 - Node.js 22.12 or later.

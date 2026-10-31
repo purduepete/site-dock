@@ -29,8 +29,9 @@ function Test-SiteDockHealth([string] $ProcessId, [int] $Port) {
     }
     if ($response.ok -ne $true) { return $false }
     # A different app on this port must not make a failed launch look healthy.
-    $listener = @(Get-NetTCPConnection -State Listen -ErrorAction Stop |
-        Where-Object { $_.LocalPort -eq $Port -and $_.OwningProcess -eq [int]$ProcessId })
+    # Windows can misreport a listener's State; identify it by its endpoint and PID.
+    $listener = @(Get-NetTCPConnection -LocalPort $Port -ErrorAction Stop |
+        Where-Object { $_.RemotePort -eq 0 -and $_.LocalAddress -eq '127.0.0.1' -and $_.OwningProcess -eq [int]$ProcessId })
     return $listener.Count -gt 0
 }
 

@@ -64,16 +64,18 @@ async function fixture(t, mode = 'healthy') {
         childPids,
         read: (name) => readFile(join(root, 'data', name), 'utf8'),
         write: (name, text) => writeFile(join(root, 'data', name), text),
-        async run(extra = []) {
-            return runPowerShell([
+        async run(extra = [], startupTimeoutSeconds = 15) {
+            const result = await runPowerShell([
                 '-File',
                 join(root, 'scripts', 'start-hidden.ps1'),
                 '-StartupTimeoutSeconds',
-                '2',
+                String(startupTimeoutSeconds),
                 '-RetryDelaySeconds',
                 '0',
                 ...extra,
             ]);
+            result.output += await readFile(join(root, 'data', 'startup.log'), 'utf8');
+            return result;
         },
     };
 }
@@ -122,13 +124,14 @@ test('Windows startup and recovery', { skip: process.platform !== 'win32', timeo
         await f.write('server.err.log', 'previous stderr');
         const result = await f.run();
         assert.equal(result.code, 0, result.output);
-        assert.equal(await f.read('server.log.1'), 'previous stdout');
+        assert.equal(await f.read('server.log.1'), 'previous stdout', result.output);
         assert.equal(await f.read('server.err.log.1'), 'previous stderr');
         const pid = (await f.read('server.pid')).trim();
         const log = await f.read('startup.log');
         assert.match(log, /Healthy on port/);
-        assert.equal((await f.run()).code, 0);
-        assert.equal((await f.read('server.pid')).trim(), pid);
+        const repeated = await f.run();
+        assert.equal(repeated.code, 0, repeated.output);
+        assert.equal((await f.read('server.pid')).trim(), pid, repeated.output);
         assert.equal(await f.read('startup.log'), log);
         const response = await fetch(`http://127.0.0.1:${f.port}/api/health`);
         assert.deepEqual(await response.json(), { ok: true });
@@ -216,7 +219,7 @@ test('Windows startup and recovery', { skip: process.platform !== 'win32', timeo
                     listener.close(resolve);
                 })
         );
-        const result = await f.run(['-MaxAttempts', '1']);
+        const result = await f.run(['-MaxAttempts', '1'], 2);
         assert.notEqual(result.code, 0, result.output);
         assert.match(await f.read('startup.log'), /failed its health check within 2 seconds/);
         await assert.rejects(f.read('server.pid'), { code: 'ENOENT' });
@@ -239,6 +242,36 @@ test('Windows startup and recovery', { skip: process.platform !== 'win32', timeo
         await assert.rejects(f.read('server.pid'), { code: 'ENOENT' });
         await assert.rejects(f.read('server.lock'), { code: 'ENOENT' });
     });
+    await t.test(
+        'listener ownership ignores misreported TCP state but rejects foreign and connected sockets',
+        async () => {
+            const common = resolve('scripts', 'common.ps1').replaceAll("'", "''");
+            const script = `
+      $ErrorActionPreference = 'Stop'
+      . '${common}'
+      function Get-SiteDockProcess { [pscustomobject]@{ ProcessId = 123 } }
+      function Invoke-RestMethod { [pscustomobject]@{ ok = $true } }
+      $script:rows = @()
+      function Get-NetTCPConnection {
+        param($LocalPort)
+        if ($LocalPort -ne 8790) { throw 'Query must target the configured port' }
+        $script:rows
+      }
+      foreach ($state in 0, 1, 2, 5) {
+        $script:rows = @([pscustomobject]@{ LocalAddress = '127.0.0.1'; RemotePort = 0; OwningProcess = 123; State = $state })
+        if (-not (Test-SiteDockHealth '123' 8790)) { throw "Listener rejected for state $state" }
+      }
+      $script:rows = @([pscustomobject]@{ LocalAddress = '127.0.0.1'; RemotePort = 0; OwningProcess = 456; State = 2 })
+      if (Test-SiteDockHealth '123' 8790) { throw 'Foreign listener accepted' }
+      $script:rows = @([pscustomobject]@{ LocalAddress = '127.0.0.1'; RemotePort = 80; OwningProcess = 123; State = 5 })
+      if (Test-SiteDockHealth '123' 8790) { throw 'Connected socket accepted as a listener' }
+      $script:rows = @([pscustomobject]@{ LocalAddress = '192.0.2.1'; RemotePort = 0; OwningProcess = 123; State = 2 })
+      if (Test-SiteDockHealth '123' 8790) { throw 'Non-loopback listener accepted' }
+    `;
+            const result = await runPowerShell(['-EncodedCommand', Buffer.from(script, 'utf16le').toString('base64')]);
+            assert.equal(result.code, 0, result.output);
+        }
+    );
     await t.test('watchdog repeats indefinitely, retries failures, and preserves the logon identity', async () => {
         const common = resolve('scripts', 'common.ps1').replaceAll("'", "''");
         const script = `
