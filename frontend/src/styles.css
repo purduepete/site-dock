@@ -733,12 +733,18 @@ p {
 }
 @media (min-width: 721px) {
     .sidebar {
+        --sidebar-content-width: var(--sidebar-width);
+        overflow: clip;
         transition: width 0.3s ease;
+    }
+    .sidebar > * {
+        width: var(--sidebar-content-width);
     }
     .interacting > .sidebar {
         transition: none;
     }
     .sidebar-minimized > .sidebar {
+        --sidebar-content-width: 49px;
         width: 50px;
         border-right: 1px solid var(--border);
     }
