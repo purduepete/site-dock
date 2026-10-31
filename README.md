@@ -1,6 +1,6 @@
 # SiteDock
 
-First entry holds the dock shell and controls until session and favorites reads finish, then reveals them together over 600ms. Sign-in and initial errors show the shell immediately. Refresh and navigation keep it visible. Embedded sites still have no spinner and retain their 4s readiness fallback.
+First entry holds the dock shell and controls until session and favorites reads finish, then reveals them together over 600ms. Sign-in and initial errors show the shell immediately. Refresh and navigation keep it visible. Embedded sites stay hidden until they load; after 4 seconds, a slow site can be opened in a new tab.
 
 ## SolutionDeploy handoff
 
@@ -71,7 +71,7 @@ SiteDock follows the existing app styling: self-hosted Roboto Flex, square corne
 
 The font is bundled from `@fontsource-variable/roboto-flex` with its open-source license. No remote font request is needed. The prepaint script and active theme hook both update the iOS `theme-color`.
 
-Initial session/favorites loading and each embedded site's first visit show a themed spinner only after 250ms. The spinner and initial content fade in over 0.6s; reduced motion disables fades and rotation. Previously visited frames stay mounted when switching sites. Embedded sites reveal on their load event or the existing 4-second fallback, which does not confirm that the site's content loaded successfully. Use Open tab if an embedded site stays blank. Reloading a revealed site keeps the short reveal without replaying its initial spinner or entrance.
+Initial session and favorites loading shows a themed spinner only after 250ms. The spinner and initial content fade in over 0.6s; reduced motion disables fades and rotation. Previously visited frames stay mounted when switching sites. Embedded sites show no spinner and fade in after their load event. If a site is still loading after 4 seconds, SiteDock offers to open it in a new tab. Returning after sign-in reloads the frame. Reloading a revealed site keeps the short reveal without replaying its first entrance.
 
 ## This installation
 

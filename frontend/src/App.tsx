@@ -1188,6 +1188,7 @@ export function App() {
                                 label={draft.find((item) => item.id === frame.id)?.name ?? 'Favorite website'}
                                 active={active}
                                 revealedSites={revealedSites.current}
+                                onOpenTab={() => reloadOnReturn.current.add(frame.id)}
                                 frameRef={(element) => {
                                     if (!element) return;
                                     frameElements.current.set(frame.id, element);

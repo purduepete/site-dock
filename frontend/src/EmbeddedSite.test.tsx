@@ -15,10 +15,11 @@ const props = () => ({
     active: true,
     revealedSites: new Set<string>(),
     frameRef: () => {},
+    onOpenTab: vi.fn(),
 });
 
 describe('embedded first visits', () => {
-    it('reveals on the readiness fallback without a spinner or claiming a load', async () => {
+    it('keeps a slow frame hidden and offers a new tab until it loads', async () => {
         const inputs = props();
         const view = render(<EmbeddedSite {...inputs} />);
         const frame = screen.getByTitle('Example');
@@ -26,17 +27,26 @@ describe('embedded first visits', () => {
         expect(screen.queryByRole('status')).toBeNull();
         expect(frame.classList.contains('ready')).toBe(false);
         await act(() => vi.advanceTimersByTimeAsync(3750));
-        expect(screen.queryByRole('status')).toBeNull();
-        expect(frame.classList.contains('ready')).toBe(true);
+        const status = screen.getByRole('status', { name: 'Waiting for Example' });
+        expect(status.textContent).toContain('Example is taking longer to load.');
+        expect(screen.queryByRole('progressbar')).toBeNull();
+        expect(frame.classList.contains('ready')).toBe(false);
         expect(frame.classList.contains('loaded')).toBe(false);
-        expect(frame.classList.contains('first-reveal')).toBe(true);
+        const open = screen.getByRole('link', { name: 'Open in new tab' });
+        expect(open.getAttribute('href')).toBe(inputs.url);
+        expect(open.getAttribute('target')).toBe('_blank');
+        fireEvent.click(open);
+        expect(inputs.onOpenTab).toHaveBeenCalledOnce();
         view.rerender(<EmbeddedSite {...inputs} active={false} />);
+        expect(screen.queryByRole('status')).toBeNull();
         view.rerender(<EmbeddedSite {...inputs} />);
+        expect(screen.getByRole('status', { name: 'Waiting for Example' })).toBeTruthy();
         expect(screen.getByTitle('Example')).toBe(frame);
-        const classes = frame.className;
         fireEvent.load(frame);
         expect(frame.classList.contains('loaded')).toBe(true);
-        expect(frame.className.replace(' loaded', '')).toBe(classes);
+        expect(frame.classList.contains('ready')).toBe(true);
+        expect(frame.classList.contains('first-reveal')).toBe(true);
+        expect(screen.queryByRole('status')).toBeNull();
     });
 
     it('reveals on load and suppresses first-visit feedback after a version replacement', async () => {
@@ -49,12 +59,12 @@ describe('embedded first visits', () => {
         view.rerender(<EmbeddedSite key="v1" {...inputs} />);
         await act(() => vi.advanceTimersByTimeAsync(300));
         expect(screen.getByTitle('Example').classList.contains('ready')).toBe(false);
-        await act(() => vi.advanceTimersByTimeAsync(3700));
+        fireEvent.load(screen.getByTitle('Example'));
         expect(screen.getByTitle('Example').classList.contains('ready')).toBe(true);
         expect(screen.getByTitle('Example').classList.contains('first-reveal')).toBe(false);
     });
 
-    it('cancels inactive fallback timers and restarts them on return', async () => {
+    it('cancels inactive waiting timers and restarts them on return', async () => {
         const inputs = props();
         const view = render(<EmbeddedSite {...inputs} />);
         await act(() => vi.advanceTimersByTimeAsync(300));
@@ -64,8 +74,10 @@ describe('embedded first visits', () => {
         view.rerender(<EmbeddedSite {...inputs} />);
         await act(() => vi.advanceTimersByTimeAsync(3999));
         expect(screen.getByTitle('Example').classList.contains('ready')).toBe(false);
+        expect(screen.queryByRole('status')).toBeNull();
         await act(() => vi.advanceTimersByTimeAsync(1));
-        expect(screen.getByTitle('Example').classList.contains('ready')).toBe(true);
+        expect(screen.getByTitle('Example').classList.contains('ready')).toBe(false);
+        expect(screen.getByRole('status', { name: 'Waiting for Example' })).toBeTruthy();
         view.unmount();
         expect(vi.getTimerCount()).toBe(0);
     });

@@ -15,7 +15,7 @@ function gate() {
 }
 
 for (const theme of ['light', 'midnight']) {
-    test(`${theme}: continuous startup and first-frame loading, fallback, and stable navigation`, async ({ page }) => {
+    test(`${theme}: startup, slow-frame fallback, and stable navigation`, async ({ page }) => {
         await page.setViewportSize({ width: 390, height: 844 });
         await page.addInitScript((value) => localStorage.setItem('sitedock.theme', value), theme);
         const now = new Date('2026-10-30T12:00:00-07:00');
@@ -58,20 +58,21 @@ for (const theme of ['light', 'midnight']) {
         const originalFrame = await firstFrame.elementHandle();
         const header = await page.locator('.workspace-header').elementHandle();
         await page.clock.runFor(250);
-        const loading = page.getByRole('status', { name: 'Loading First fixture', exact: true });
-        await expect(loading).toBeAttached();
-        await expect(loading.locator('.loading-ring')).toHaveCSS('width', '40px');
-        await expect(loading.locator('.loading-ring')).toHaveCSS('animation-duration', '1s');
-        await expect(loading).toHaveCSS('animation-duration', '0.6s');
+        const waiting = page.getByRole('status', { name: 'Waiting for First fixture', exact: true });
+        await expect(waiting).toHaveCount(0);
         await page.clock.runFor(3750);
-        await expect(loading).toHaveCount(0);
-        await expect(firstFrame).toHaveClass(/ready/);
+        await expect(waiting).toBeVisible();
+        await expect(waiting.getByRole('link', { name: 'Open in new tab' })).toHaveAttribute('href', favorites[0].url);
+        await expect(firstFrame).not.toHaveClass(/ready/);
         await expect(firstFrame).not.toHaveClass(/loaded/);
+        await expect(firstFrame).toHaveCSS('visibility', 'hidden');
+        frameGate.release();
+        await expect(firstFrame).toHaveClass(/loaded/);
+        await expect(firstFrame).toHaveClass(/ready/);
+        await expect(waiting).toHaveCount(0);
         await expect(firstFrame).toHaveCSS('animation-duration', '0.6s');
         await page.clock.runFor(600);
         await expect(firstFrame).toHaveCSS('opacity', '1');
-        frameGate.release();
-        await expect(firstFrame).toHaveClass(/loaded/);
         const animations = await firstFrame.evaluate((element) => element.getAnimations().length);
         expect(animations).toBe(0);
         await page.getByRole('button', { name: 'Show favorites' }).click();
@@ -82,11 +83,10 @@ for (const theme of ['light', 'midnight']) {
         expect(
             await page.locator('.workspace-header').evaluate((element, original) => element === original, header)
         ).toBe(true);
-        await expect(page.getByRole('status', { name: 'Loading First fixture', exact: true })).toHaveCount(0);
+        await expect(waiting).toHaveCount(0);
         await page.getByRole('button', { name: 'Reload selected site' }).click();
         await expect(firstFrame).toHaveClass(/ready/);
         await expect(firstFrame).not.toHaveClass(/first-reveal/);
-        await expect(firstFrame).toHaveCSS('transition-duration', '0.14s');
         expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
         await page.getByRole('button', { name: 'Show favorites' }).click();
         await page
@@ -98,7 +98,7 @@ for (const theme of ['light', 'midnight']) {
     });
 }
 
-test('reduced motion keeps thresholds and visibility while disabling fades and rotation', async ({ page }) => {
+test('reduced motion keeps a slow frame hidden until it loads', async ({ page }) => {
     await page.emulateMedia({ reducedMotion: 'reduce' });
     await page.setViewportSize({ width: 1024, height: 768 });
     const now = new Date('2026-10-30T12:00:00-07:00');
@@ -113,16 +113,13 @@ test('reduced motion keeps thresholds and visibility while disabling fades and r
     });
     await page.goto('/', { waitUntil: 'domcontentloaded' });
     await expect(page.locator('iframe')).toHaveCount(1);
-    await page.clock.runFor(249);
-    const spinner = page.getByRole('status', { name: 'Loading First fixture', exact: true });
-    await expect(spinner).toHaveCount(0);
-    await page.clock.runFor(1);
-    await expect(spinner).toHaveCSS('animation-name', 'none');
-    await expect(spinner.locator('.loading-ring')).toHaveCSS('animation-name', 'none');
-    await page.clock.runFor(3750);
+    await page.clock.runFor(4000);
     const frame = page.locator('iframe[title="First fixture"]');
-    await expect(spinner).toHaveCount(0);
+    await expect(page.getByRole('status', { name: 'Waiting for First fixture' })).toBeVisible();
+    await expect(frame).toHaveCSS('visibility', 'hidden');
+    await expect(frame).toHaveCSS('opacity', '0');
+    frameGate.release();
+    await expect(frame).toHaveClass(/loaded/);
     await expect(frame).toHaveCSS('animation-name', 'none');
     await expect(frame).toHaveCSS('opacity', '1');
-    frameGate.release();
 });

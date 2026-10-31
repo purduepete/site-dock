@@ -7,6 +7,7 @@ export function EmbeddedSite({
     active,
     revealedSites,
     frameRef,
+    onOpenTab,
 }: {
     identity: string;
     url: string;
@@ -14,39 +15,52 @@ export function EmbeddedSite({
     active: boolean;
     revealedSites: Set<string>;
     frameRef: RefCallback<HTMLIFrameElement>;
+    onOpenTab: () => void;
 }) {
-    const [ready, setReady] = useState(false);
     const [loaded, setLoaded] = useState(false);
+    const [waiting, setWaiting] = useState(false);
     const [firstReveal, setFirstReveal] = useState(false);
 
     useEffect(() => {
-        if (!active || ready) return;
-        const timer = setTimeout(() => setReady(true), 4000);
+        if (!active || loaded || waiting) return;
+        const timer = setTimeout(() => setWaiting(true), 4000);
         return () => clearTimeout(timer);
-    }, [active, ready]);
+    }, [active, loaded, waiting]);
 
     useLayoutEffect(() => {
-        if (!ready || !active || revealedSites.has(identity)) return;
+        if (!loaded || !active || revealedSites.has(identity)) return;
         revealedSites.add(identity);
         setFirstReveal(true);
-    }, [ready, active, identity, revealedSites]);
+    }, [loaded, active, identity, revealedSites]);
 
-    // No spinner here: the frame fades in on load or after the 4s readiness fallback.
     return (
-        <iframe
-            ref={frameRef}
-            title={label}
-            src={url}
-            className={`site-frame${active ? ' active' : ''}${loaded ? ' loaded' : ''}${ready ? ' ready' : ''}${firstReveal ? ' first-reveal' : ''}`}
-            aria-hidden={active ? undefined : true}
-            inert={!active}
-            onAnimationEnd={() => setFirstReveal(false)}
-            onLoad={() => {
-                setLoaded(true);
-                setReady(true);
-            }}
-            sandbox="allow-scripts allow-same-origin allow-forms allow-popups allow-popups-to-escape-sandbox"
-            referrerPolicy="no-referrer"
-        />
+        <>
+            <iframe
+                ref={frameRef}
+                title={label}
+                src={url}
+                className={`site-frame${active ? ' active' : ''}${loaded ? ' loaded ready' : ''}${firstReveal ? ' first-reveal' : ''}`}
+                aria-hidden={active ? undefined : true}
+                inert={!active}
+                onAnimationEnd={() => setFirstReveal(false)}
+                onLoad={() => setLoaded(true)}
+                sandbox="allow-scripts allow-same-origin allow-forms allow-popups allow-popups-to-escape-sandbox"
+                referrerPolicy="no-referrer"
+            />
+            {active && waiting && !loaded && (
+                <section className="empty-state" role="status" aria-label={`Waiting for ${label}`}>
+                    <p>{label} is taking longer to load.</p>
+                    <a
+                        className="button primary"
+                        href={url}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        onClick={onOpenTab}
+                    >
+                        Open in new tab
+                    </a>
+                </section>
+            )}
+        </>
     );
 }
