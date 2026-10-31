@@ -116,6 +116,7 @@ afterEach(() => {
 });
 async function ready() {
     render(<App />);
+    expect(document.querySelector('[data-first-load]')?.getAttribute('data-first-load')).toBe('loading');
     await screen.findByTitle('Example');
 }
 
@@ -138,10 +139,12 @@ describe('startup loading', () => {
         expect(screen.queryByRole('status', { name: 'Loading Site Dock' })).toBeNull();
         await act(() => vi.advanceTimersByTimeAsync(100));
         const indicator = screen.getByRole('status', { name: 'Loading Site Dock' });
+        expect(document.querySelector('[data-first-load]')?.getAttribute('data-first-load')).toBe('loading');
         await act(() => vi.advanceTimersByTimeAsync(49));
         expect(screen.getByRole('status', { name: 'Loading Site Dock' })).toBe(indicator);
         await act(() => vi.advanceTimersByTimeAsync(1));
         expect(screen.queryByRole('status', { name: 'Loading Site Dock' })).toBeNull();
+        expect(document.querySelector('[data-first-load]')?.getAttribute('data-first-load')).toBe('ready');
         const frame = screen.getByTitle('Example');
         expect(frame.closest('.initial-content')).toBeNull();
     });

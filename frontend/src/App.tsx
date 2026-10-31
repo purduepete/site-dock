@@ -354,6 +354,11 @@ export function App() {
     const current = draft.find((item) => item.id === selected);
     const startupLoading =
         (session === null && checkingSession) || (!!session?.authenticated && store === null && !favoritesFailed);
+    const [firstLoad, setFirstLoad] = useState('loading');
+    useEffect(() => {
+        if (firstLoad === 'loading' && !startupLoading)
+            setFirstLoad(error || !session?.authenticated ? 'error' : 'ready');
+    }, [firstLoad, startupLoading, error, session?.authenticated]);
 
     useEffect(() => {
         if (session?.authenticated === false && !enteredLogin.current) {
@@ -700,7 +705,7 @@ export function App() {
 
     if (!session?.authenticated)
         return (
-            <div className="login-page">
+            <div className="login-page" data-first-load={firstLoad}>
                 {startupIndicator}
                 <header className="login-header">
                     <span className="wordmark">
@@ -752,6 +757,7 @@ export function App() {
     return (
         <div
             className={`app ${resizing ? 'interacting' : ''} ${minimized ? 'sidebar-minimized' : ''}`}
+            data-first-load={firstLoad}
             style={{ '--sidebar-width': `${width}px` } as CSSProperties}
         >
             {startupIndicator}

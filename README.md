@@ -1,5 +1,7 @@
 # SiteDock
 
+First entry holds the dock shell and controls until session and favorites reads finish, then reveals them together over 600ms. Sign-in and initial errors show the shell immediately. Refresh and navigation keep it visible. Embedded sites still have no spinner and retain their 4s readiness fallback.
+
 ## SolutionDeploy handoff
 
 Target favorites/groups/revisions and owner records use the dedicated `site_dock`

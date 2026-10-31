@@ -897,6 +897,19 @@ iframe {
 .initial-content {
     animation: content-reveal 0.6s ease-out;
 }
+[data-first-load='loading'] > :not(.startup-loading) {
+    visibility: hidden;
+    opacity: 0;
+}
+[data-first-load='ready'] > :not(.startup-loading) {
+    animation: content-reveal 0.6s ease-out both;
+}
+[data-first-load='ready'] .initial-content {
+    animation: none;
+}
+.login-page[data-first-load='error'] .initial-content {
+    animation: none;
+}
 .loading-indicator {
     display: flex;
     align-items: center;
@@ -953,6 +966,9 @@ iframe {
     .initial-content,
     .loading-indicator,
     .loading-ring {
+        animation: none;
+    }
+    [data-first-load='ready'] > :not(.startup-loading) {
         animation: none;
     }
 }
