@@ -920,11 +920,6 @@ iframe {
         env(safe-area-inset-left);
     z-index: 3;
 }
-.frame-loading {
-    position: absolute;
-    inset: 0;
-    z-index: 2;
-}
 @keyframes content-reveal {
     from {
         opacity: 0;

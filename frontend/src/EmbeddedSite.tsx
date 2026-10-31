@@ -1,5 +1,4 @@
 import { useEffect, useLayoutEffect, useState, type RefCallback } from 'react';
-import { LoadingSpinner } from './LoadingSpinner';
 
 export function EmbeddedSite({
     identity,
@@ -19,7 +18,6 @@ export function EmbeddedSite({
     const [ready, setReady] = useState(false);
     const [loaded, setLoaded] = useState(false);
     const [firstReveal, setFirstReveal] = useState(false);
-    const [firstVisit] = useState(() => !revealedSites.has(identity));
 
     useEffect(() => {
         if (!active || ready) return;
@@ -33,28 +31,22 @@ export function EmbeddedSite({
         setFirstReveal(true);
     }, [ready, active, identity, revealedSites]);
 
+    // No spinner here: the frame fades in on load or after the 4s readiness fallback.
     return (
-        <>
-            <iframe
-                ref={frameRef}
-                title={label}
-                src={url}
-                className={`site-frame${active ? ' active' : ''}${loaded ? ' loaded' : ''}${ready ? ' ready' : ''}${firstReveal ? ' first-reveal' : ''}`}
-                aria-hidden={active ? undefined : true}
-                inert={!active}
-                onAnimationEnd={() => setFirstReveal(false)}
-                onLoad={() => {
-                    setLoaded(true);
-                    setReady(true);
-                }}
-                sandbox="allow-scripts allow-same-origin allow-forms allow-popups allow-popups-to-escape-sandbox"
-                referrerPolicy="no-referrer"
-            />
-            <LoadingSpinner
-                isLoading={active && !ready && firstVisit}
-                label={`Loading ${label}`}
-                className="frame-loading"
-            />
-        </>
+        <iframe
+            ref={frameRef}
+            title={label}
+            src={url}
+            className={`site-frame${active ? ' active' : ''}${loaded ? ' loaded' : ''}${ready ? ' ready' : ''}${firstReveal ? ' first-reveal' : ''}`}
+            aria-hidden={active ? undefined : true}
+            inert={!active}
+            onAnimationEnd={() => setFirstReveal(false)}
+            onLoad={() => {
+                setLoaded(true);
+                setReady(true);
+            }}
+            sandbox="allow-scripts allow-same-origin allow-forms allow-popups allow-popups-to-escape-sandbox"
+            referrerPolicy="no-referrer"
+        />
     );
 }
