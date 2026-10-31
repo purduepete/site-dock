@@ -73,6 +73,10 @@ The font is bundled from `@fontsource-variable/roboto-flex` with its open-source
 
 Initial session and favorites loading shows a themed spinner only after 250ms. The spinner and initial content fade in over 0.6s; reduced motion disables fades and rotation. Previously visited frames stay mounted when switching sites. Embedded sites show no spinner and fade in after their load event. If a site is still loading after 4 seconds, SiteDock offers to open it in a new tab. Returning after sign-in reloads the frame. Reloading a revealed site keeps the short reveal without replaying its first entrance.
 
+The favorites rail expands and collapses over 300ms on desktop. Drag-resizing stays immediate.
+On phones, the list slides in and out over 300ms and stays visible until the closing slide finishes.
+Reduced motion disables both transitions. Embedded pages stay mounted throughout.
+
 ## This installation
 
 - Production: `https://jimbrownhome.tail8ad282.ts.net:9443/` on jimbrownhome (443 there belongs to another app), started at logon by the `SiteDock` scheduled task.
