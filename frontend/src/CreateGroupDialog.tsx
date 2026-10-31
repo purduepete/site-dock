@@ -1,5 +1,6 @@
 import { useEffect, useId, useRef, useState, type FormEvent } from 'react';
 import { createPortal } from 'react-dom';
+import { isAppleTouchDevice } from './device';
 
 export function CreateGroupDialog({
     groups,
@@ -13,6 +14,8 @@ export function CreateGroupDialog({
     onCancel: () => void;
 }) {
     const dialog = useRef<HTMLDialogElement>(null);
+    const heading = useRef<HTMLHeadingElement>(null);
+    const input = useRef<HTMLInputElement>(null);
     const returnFocus = useRef(document.activeElement instanceof HTMLElement ? document.activeElement : null);
     const title = useId();
     const [name, setName] = useState('');
@@ -21,6 +24,7 @@ export function CreateGroupDialog({
         const target = returnFocus.current;
         const element = dialog.current!;
         element.showModal();
+        (isAppleTouchDevice() ? heading : input).current?.focus();
         return () => {
             element.close();
             if (target?.isConnected) target.focus();
@@ -57,12 +61,14 @@ export function CreateGroupDialog({
                 if (!busy) onCancel();
             }}
         >
-            <h2 id={title}>Create group</h2>
+            <h2 id={title} ref={heading} tabIndex={-1}>
+                Create group
+            </h2>
             <form onSubmit={(event) => void submit(event)}>
                 <label>
                     Group name
                     <input
-                        autoFocus
+                        ref={input}
                         maxLength={50}
                         value={name}
                         onChange={(event) => setName(event.target.value)}

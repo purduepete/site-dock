@@ -24,6 +24,7 @@ import { DeleteFavoriteDialog } from './DeleteFavoriteDialog';
 import { forgetMissingIcons, SiteIcon } from './SiteIcon';
 import { CreateGroupDialog } from './CreateGroupDialog';
 import { GroupHud } from './GroupHud';
+import { isAppleTouchDevice } from './device';
 import { ReorderGroupsDialog } from './ReorderGroupsDialog';
 import { LoadingSpinner } from './LoadingSpinner';
 import { EmbeddedSite } from './EmbeddedSite';
@@ -126,13 +127,14 @@ function FavoriteForm({
 }) {
     const dialog = useRef<HTMLDialogElement>(null);
     const nameInput = useRef<HTMLInputElement>(null);
+    const heading = useRef<HTMLHeadingElement>(null);
     const returnFocus = useRef(document.activeElement instanceof HTMLElement ? document.activeElement : null);
     const title = useId();
     useEffect(() => {
         const target = returnFocus.current;
         const element = dialog.current!;
         element.showModal();
-        nameInput.current?.focus();
+        (isAppleTouchDevice() ? heading : nameInput).current?.focus();
         return () => {
             element.close();
             if (target?.isConnected) target.focus();
@@ -183,7 +185,9 @@ function FavoriteForm({
             }}
         >
             <div className="section-heading">
-                <h2 id={title}>{favorite.name ? 'Edit favorite' : 'Add favorite'}</h2>
+                <h2 id={title} ref={heading} tabIndex={-1}>
+                    {favorite.name ? 'Edit favorite' : 'Add favorite'}
+                </h2>
                 <button type="button" aria-label="Close editor" onClick={onClose} disabled={busy}>
                     <Icon name="close" />
                 </button>
@@ -193,7 +197,6 @@ function FavoriteForm({
                     Name
                     <input
                         ref={nameInput}
-                        autoFocus
                         maxLength={100}
                         value={name}
                         onChange={(event) => setName(event.target.value)}

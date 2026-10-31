@@ -1,5 +1,6 @@
 import { useEffect, useId, useMemo, useRef, useState, type KeyboardEvent } from 'react';
 import { createPortal } from 'react-dom';
+import { isAppleTouchDevice } from './device';
 
 export type HudOption = { value: string; label: string; count: number };
 
@@ -18,6 +19,7 @@ export function GroupHud({
 }) {
     const dialog = useRef<HTMLDialogElement>(null);
     const input = useRef<HTMLInputElement>(null);
+    const heading = useRef<HTMLHeadingElement>(null);
     const returnFocus = useRef(
         returnTo ?? (document.activeElement instanceof HTMLElement ? document.activeElement : null)
     );
@@ -40,7 +42,7 @@ export function GroupHud({
         const target = returnFocus.current;
         const element = dialog.current!;
         element.showModal();
-        input.current?.focus();
+        (isAppleTouchDevice() ? heading : input).current?.focus();
         return () => {
             element.close();
             if (target?.isConnected) target.focus();
@@ -81,7 +83,9 @@ export function GroupHud({
             }}
         >
             <div className="group-hud-body">
-                <h2 id={title}>Switch group</h2>
+                <h2 id={title} ref={heading} tabIndex={-1}>
+                    Switch group
+                </h2>
                 <input
                     ref={input}
                     role="combobox"

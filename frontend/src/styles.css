@@ -119,6 +119,10 @@ select:focus-visible,
     outline: 2px solid var(--accent);
     outline-offset: 3px;
 }
+/* Dialog headings take initial focus on iPhone and iPad only to keep the keyboard closed. */
+h2[tabindex='-1']:focus {
+    outline: none;
+}
 svg {
     flex-shrink: 0;
     width: 18px;

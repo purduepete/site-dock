@@ -11,6 +11,7 @@ import {
 } from 'react';
 import { createPortal } from 'react-dom';
 import { Info } from 'lucide-react';
+import { isAppleTouchDevice } from './device';
 
 export function InfoBox({
     heading,
@@ -22,9 +23,7 @@ export function InfoBox({
     control?: ReactElement<HTMLAttributes<HTMLElement>>;
 }) {
     const id = useId();
-    const appleTouchDevice =
-        /iPad|iPhone|iPod/.test(navigator.userAgent) ||
-        (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+    const appleTouchDevice = isAppleTouchDevice();
     const trigger = useRef<HTMLElement | null>(null);
     const box = useRef<HTMLDivElement>(null);
     const timer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);

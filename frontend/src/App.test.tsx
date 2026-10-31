@@ -993,3 +993,76 @@ describe('embedded app token handoff', () => {
         expect(screen.queryByRole('button', { name: 'Forget saved sign-in' })).toBeNull();
     });
 });
+
+describe('modal initial focus by device', () => {
+    const devices = [
+        {
+            label: 'desktop',
+            userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)',
+            platform: 'Win32',
+            touches: 0,
+            ios: false,
+        },
+        {
+            label: 'iPhone',
+            userAgent: 'Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X)',
+            platform: 'iPhone',
+            touches: 5,
+            ios: true,
+        },
+        {
+            label: 'iPad with desktop identity',
+            userAgent: 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7)',
+            platform: 'MacIntel',
+            touches: 5,
+            ios: true,
+        },
+    ];
+    function useDevice(userAgent: string, platform: string, touches: number) {
+        vi.spyOn(navigator, 'userAgent', 'get').mockReturnValue(userAgent);
+        vi.spyOn(navigator, 'platform', 'get').mockReturnValue(platform);
+        vi.stubGlobal('navigator', Object.create(navigator, { maxTouchPoints: { value: touches } }));
+    }
+    afterEach(() => vi.restoreAllMocks());
+
+    it.each(devices)(
+        'focuses the right element when modals open on $label',
+        async ({ userAgent, platform, touches, ios }) => {
+            useDevice(userAgent, platform, touches);
+            await ready();
+            const edit = screen.getByRole('button', { name: 'Edit Example' });
+            await userEvent.click(edit);
+            let modal = screen.getByRole('dialog', { name: 'Edit favorite' });
+            const name = within(modal).getByLabelText('Name', { exact: true });
+            expect(document.activeElement).toBe(
+                ios ? within(modal).getByRole('heading', { name: 'Edit favorite' }) : name
+            );
+            await userEvent.click(name);
+            expect(document.activeElement).toBe(name);
+            await userEvent.type(name, ' tapped');
+            expect((name as HTMLInputElement).value).toBe('Example tapped');
+            fireEvent(modal, new Event('cancel', { cancelable: true }));
+            expect(document.activeElement).toBe(edit);
+
+            await userEvent.click(screen.getByRole('combobox', { name: 'Group' }));
+            await userEvent.click(screen.getByRole('option', { name: 'Create group...' }));
+            modal = screen.getByRole('dialog', { name: 'Create group' });
+            const group = within(modal).getByLabelText('Group name');
+            expect(document.activeElement).toBe(
+                ios ? within(modal).getByRole('heading', { name: 'Create group' }) : group
+            );
+            await userEvent.click(group);
+            expect(document.activeElement).toBe(group);
+            await userEvent.click(within(modal).getByRole('button', { name: 'Cancel' }));
+
+            fireEvent.keyDown(window, { code: 'KeyG', key: 'g', altKey: true });
+            modal = await screen.findByRole('dialog', { name: 'Switch group' });
+            const filter = within(modal).getByRole('combobox', { name: 'Filter groups' });
+            expect(document.activeElement).toBe(
+                ios ? within(modal).getByRole('heading', { name: 'Switch group' }) : filter
+            );
+            await userEvent.click(filter);
+            expect(document.activeElement).toBe(filter);
+        }
+    );
+});
