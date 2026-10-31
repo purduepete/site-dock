@@ -900,6 +900,13 @@ iframe {
     pointer-events: none;
     animation: content-reveal 0.6s ease-out;
 }
+.startup-loading,
+.loading-indicator,
+[role='status'] {
+    caret-color: transparent;
+    user-select: none;
+    -webkit-user-select: none;
+}
 .loading-ring {
     display: block;
     width: 40px;
