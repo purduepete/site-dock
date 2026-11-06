@@ -2,7 +2,12 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { act, cleanup, renderHook } from '@testing-library/react';
 import source from '../public/theme-init.js?raw';
-import { useTheme } from './useTheme';
+import favicon from '../public/favicon.svg?raw';
+import lightSource from '../public/apple-touch-icon-light.svg?raw';
+import brandLight from '../public/brand-light.svg?raw';
+import darkPng from '../public/apple-touch-icon.png?inline';
+import lightPng from '../public/apple-touch-icon-light.png?inline';
+import { SITE_ICONS, useTheme } from './useTheme';
 
 let media: MediaQueryList;
 let listeners: Set<() => void>;
@@ -20,7 +25,8 @@ beforeEach(() => {
         removeEventListener: (_: string, listener: () => void) => listeners.delete(listener),
     } as unknown as MediaQueryList;
     vi.stubGlobal('matchMedia', () => media);
-    document.head.innerHTML = '<meta name="theme-color" content="">';
+    document.head.innerHTML =
+        '<meta name="theme-color" content=""><link rel="apple-touch-icon" href="/apple-touch-icon.png?v=2">';
 });
 afterEach(() => {
     cleanup();
@@ -35,6 +41,15 @@ function expectTheme(dark: boolean) {
     expect(document.documentElement.style.colorScheme).toBe(dark ? 'dark' : 'light');
     expect(document.documentElement.classList.contains('theme-midnight')).toBe(dark);
     expect(document.querySelector('meta')?.content).toBe(dark ? '#0f172a' : '#ffffff');
+    expect(document.querySelector('link[rel="apple-touch-icon"]')?.getAttribute('href')).toBe(
+        dark ? SITE_ICONS.dark : SITE_ICONS.light
+    );
+}
+// Width and height from a PNG data URL's IHDR chunk (bytes 16-23).
+function pngSize(dataUrl: string) {
+    const bytes = atob(dataUrl.split(',')[1]);
+    const word = (at: number) => [0, 1, 2, 3].reduce((n, i) => n * 256 + bytes.charCodeAt(at + i), 0);
+    return [word(16), word(20)];
 }
 describe('theme preference', () => {
     it.each([null, 'dark', 'midnight', 'light', 'system', 'invalid'])(
@@ -77,5 +92,16 @@ describe('theme preference', () => {
         expect(values.get('sitedock.theme')).toBe('system');
         unmount();
         expect(listeners.size).toBe(0);
+    });
+    it('ships a dark favicon and 180px light and dark site icons', () => {
+        expect(favicon).toContain('<rect x="4" y="4" width="56" height="56" rx="14" fill="#0f172a" />');
+        expect(favicon).toContain('stroke="#38bdf8"');
+        expect(lightSource).toContain('<rect width="64" height="64" fill="#fff7ed" />');
+        expect(brandLight).toContain('<rect x="4" y="4" width="56" height="56" rx="14" fill="#fff7ed" />');
+        expect(brandLight).toContain('stroke="#0284c7"');
+        expect(source).toContain(SITE_ICONS.dark);
+        expect(source).toContain(SITE_ICONS.light);
+        expect(pngSize(darkPng)).toEqual([180, 180]);
+        expect(pngSize(lightPng)).toEqual([180, 180]);
     });
 });

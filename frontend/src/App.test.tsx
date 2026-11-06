@@ -456,7 +456,8 @@ describe('dashboard sessions and embedded pages', () => {
         await ready();
         const frame = screen.getByTitle('Example');
         const logo = screen.getByRole('button', { name: 'Minimize favorites' });
-        expect(logo.querySelector('img')?.getAttribute('src')).toBe('/favicon.svg');
+        expect(logo.querySelector('img')?.getAttribute('src')).toBe('/favicon.svg?v=2');
+        expect(logo.querySelector('img.brand-icon-light')?.getAttribute('src')).toBe('/brand-light.svg?v=2');
         await userEvent.click(logo);
         expect(document.querySelector('.app')?.classList.contains('sidebar-minimized')).toBe(true);
         expect(localStorage.getItem('sitedock.sidebar-minimized')).toBe('true');

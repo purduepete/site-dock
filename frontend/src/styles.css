@@ -191,6 +191,14 @@ p {
     height: 30px;
     display: block;
 }
+/* The header mark follows the theme; the browser-tab favicon stays dark. */
+.brand-icon-light,
+:root[data-theme='light'] .brand-icon-dark {
+    display: none;
+}
+:root[data-theme='light'] .brand-icon-light {
+    display: block;
+}
 /* Fixed and full-width so Safari 26 treats it as the top bar: it tints the status bar with --panel and skips the soft-edge blur over the headers. */
 .app {
     position: fixed;

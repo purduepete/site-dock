@@ -24,4 +24,7 @@
     // The status bar takes theme-color, so it matches the header (--panel) rather than the page background.
     document.documentElement.style.backgroundColor = theme === 'dark' ? '#0f172a' : '#ffffff';
     document.querySelector('meta[name="theme-color"]').content = theme === 'dark' ? '#0f172a' : '#ffffff';
+    // iOS saves whichever site icon is linked when the app is added to the home screen.
+    const siteIcon = document.querySelector('link[rel="apple-touch-icon"]');
+    if (siteIcon) siteIcon.href = theme === 'dark' ? '/apple-touch-icon.png?v=2' : '/apple-touch-icon-light.png?v=2';
 })();

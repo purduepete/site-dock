@@ -710,7 +710,8 @@ export function App() {
                 <header className="login-header">
                     <span className="wordmark">
                         <span className="brand-mark">
-                            <img className="brand-icon" src="/favicon.svg" alt="" />
+                            <img className="brand-icon brand-icon-dark" src="/favicon.svg?v=2" alt="" />
+                            <img className="brand-icon brand-icon-light" src="/brand-light.svg?v=2" alt="" />
                         </span>
                         Site Dock
                     </span>
@@ -826,7 +827,8 @@ export function App() {
                 <div className="sidebar-brand">
                     <span className="wordmark">
                         <span className="brand-mark mobile-only">
-                            <img className="brand-icon" src="/favicon.svg" alt="" />
+                            <img className="brand-icon brand-icon-dark" src="/favicon.svg?v=2" alt="" />
+                            <img className="brand-icon brand-icon-light" src="/brand-light.svg?v=2" alt="" />
                         </span>
                         <button
                             type="button"
@@ -841,7 +843,8 @@ export function App() {
                                 savePreference('sidebar-minimized', String(next));
                             }}
                         >
-                            <img className="brand-icon" src="/favicon.svg" alt="" />
+                            <img className="brand-icon brand-icon-dark" src="/favicon.svg?v=2" alt="" />
+                            <img className="brand-icon brand-icon-light" src="/brand-light.svg?v=2" alt="" />
                         </button>
                         Site Dock
                     </span>
