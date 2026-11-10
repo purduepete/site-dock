@@ -9,6 +9,7 @@ import {
     validateGroups,
     validateGroupCap,
     validateReorder,
+    preserveFavoriteHiddenState,
     type FavoritesStore,
     type Owner,
     type StorageBackend,
@@ -41,16 +42,20 @@ export class PostgresStorage implements StorageBackend {
         if (!value || !Number.isSafeInteger(value.revision) || value.revision < 0)
             throw new Error('Invalid favorites revision.');
         const groups = validateGroups(value.groups ?? []);
+        const hiddenGroups = validateGroups(value.hiddenGroups ?? []);
         const favorites = validateFavorites(value.favorites, this.forbiddenOrigins);
         if (favorites.some((f) => f.groups?.some((group) => !groups.includes(group))))
             throw new ValidationError('A favorite references an unknown group.');
-        return { revision: value.revision, favorites, groups };
+        if (hiddenGroups.some((group) => !groups.includes(group)))
+            throw new ValidationError('A hidden group must exist in the group list.');
+        return { revision: value.revision, favorites, groups, hiddenGroups };
     }
     async update(
         baseRevision: unknown,
         favorites: unknown,
         operation?: unknown,
-        groupNames?: unknown
+        groupNames?: unknown,
+        hiddenGroupNames?: unknown
     ): Promise<FavoritesStore> {
         if (!Number.isSafeInteger(baseRevision) || (baseRevision as number) < 0)
             throw new ValidationError('A valid baseRevision is required.');
@@ -63,10 +68,17 @@ export class PostgresStorage implements StorageBackend {
             if (result.rows.length !== 1) throw new Error('SiteDock favorites have not been imported.');
             const current = this.validate(result.rows[0].document);
             if (current.revision !== baseRevision) throw new ConflictError(current);
-            const validated = validateFavorites(favorites, this.forbiddenOrigins);
+            const validated = preserveFavoriteHiddenState(
+                validateFavorites(favorites, this.forbiddenOrigins),
+                current.favorites
+            );
             const groups = groupNames === undefined ? current.groups : validateGroups(groupNames);
+            const hiddenGroups =
+                hiddenGroupNames === undefined ? current.hiddenGroups : validateGroups(hiddenGroupNames);
             if (validated.some((f) => f.groups?.some((group) => !groups.includes(group))))
                 throw new ValidationError('Choose existing groups for every favorite.');
+            if (hiddenGroups.some((group) => !groups.includes(group)))
+                throw new ValidationError('A hidden group must exist in the group list.');
             validateGroupCap(validated, current.favorites);
             if (operation !== undefined && operation !== 'reorder')
                 throw new ValidationError('Invalid favorites operation.');
@@ -82,6 +94,7 @@ export class PostgresStorage implements StorageBackend {
                             old.name !== f.name ||
                             old.url !== f.url ||
                             old.mode !== f.mode ||
+                            old.hidden !== f.hidden ||
                             (old.groups?.length ?? 0) !== (f.groups?.length ?? 0) ||
                             f.groups?.some((group) => !old.groups?.includes(group))
                         );
@@ -90,9 +103,11 @@ export class PostgresStorage implements StorageBackend {
                     throw new ValidationError('Reordering cannot edit favorite fields.');
                 if (JSON.stringify(groups) !== JSON.stringify(current.groups))
                     throw new ValidationError('Reordering cannot edit groups.');
+                if (JSON.stringify(hiddenGroups) !== JSON.stringify(current.hiddenGroups))
+                    throw new ValidationError('Reordering cannot edit hidden groups.');
             }
             if (current.revision === Number.MAX_SAFE_INTEGER) throw new Error('Favorites revision exhausted.');
-            const next = { revision: current.revision + 1, favorites: validated, groups };
+            const next = { revision: current.revision + 1, favorites: validated, groups, hiddenGroups };
             const updated = await client.query(
                 "UPDATE public.sitedock_favorites SET document=$1::jsonb WHERE singleton=TRUE AND (document->>'revision')::bigint=$2",
                 [JSON.stringify(next), baseRevision]

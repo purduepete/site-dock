@@ -13,11 +13,13 @@ export interface Favorite {
     url: string;
     mode: 'embed' | 'external';
     groups?: string[];
+    hidden?: boolean;
 }
 export interface FavoritesStore {
     revision: number;
     favorites: Favorite[];
     groups: string[];
+    hiddenGroups: string[];
 }
 export interface Owner {
     username: string;
@@ -32,7 +34,8 @@ export interface StorageBackend {
         baseRevision: unknown,
         favorites: unknown,
         operation?: unknown,
-        groupNames?: unknown
+        groupNames?: unknown,
+        hiddenGroupNames?: unknown
     ): Promise<FavoritesStore>;
     drain(): Promise<void>;
     close?(): Promise<void>;
@@ -102,6 +105,8 @@ export function validateFavorites(value: unknown, forbiddenOrigins: readonly str
         )
             throw new ValidationError('Use a cross-origin HTTP(S) URL without credentials.');
         if (f.mode !== 'embed' && f.mode !== 'external') throw new ValidationError('Invalid display mode.');
+        if (f.hidden !== undefined && typeof f.hidden !== 'boolean')
+            throw new ValidationError('Favorite hidden state must be a boolean.');
         if (f.group !== undefined && (typeof f.group !== 'string' || !f.group.trim() || f.group.trim().length > 50))
             throw new ValidationError('Invalid favorite group.');
         if (f.group !== undefined && f.groups !== undefined)
@@ -109,7 +114,24 @@ export function validateFavorites(value: unknown, forbiddenOrigins: readonly str
         const groups = validateGroups(
             f.groups === undefined ? (typeof f.group === 'string' ? [f.group] : []) : f.groups
         );
-        return { id: f.id, name: f.name.trim(), url: url.href, mode: f.mode, ...(groups.length ? { groups } : {}) };
+        return {
+            id: f.id,
+            name: f.name.trim(),
+            url: url.href,
+            mode: f.mode,
+            ...(groups.length ? { groups } : {}),
+            ...(f.hidden !== undefined ? { hidden: f.hidden } : {}),
+        };
+    });
+}
+
+export function preserveFavoriteHiddenState(next: readonly Favorite[], current: readonly Favorite[]): Favorite[] {
+    const previous = new Map(current.map((favorite) => [favorite.id, favorite]));
+    return next.map((favorite) => {
+        const old = previous.get(favorite.id);
+        return old?.hidden !== undefined && favorite.hidden === undefined
+            ? { ...favorite, hidden: old.hidden }
+            : favorite;
     });
 }
 
@@ -247,26 +269,37 @@ export class Storage {
         if (!Number.isSafeInteger(record.revision) || record.revision < 0)
             throw new Error('Invalid favorites revision. Restore the last good backup.');
         const groups = validateGroups(record.groups === undefined ? [] : record.groups);
+        const hiddenGroups = validateGroups(record.hiddenGroups === undefined ? [] : record.hiddenGroups);
         const favorites = validateFavorites(record.favorites, this.forbiddenOrigins);
         if (favorites.some((favorite) => favorite.groups?.some((group) => !groups.includes(group))))
             throw new ValidationError('A favorite references an unknown group.');
-        return { revision: record.revision, favorites, groups };
+        if (hiddenGroups.some((group) => !groups.includes(group)))
+            throw new ValidationError('A hidden group must exist in the group list.');
+        return { revision: record.revision, favorites, groups, hiddenGroups };
     }
     update(
         baseRevision: unknown,
         favorites: unknown,
         operation?: unknown,
-        groupNames?: unknown
+        groupNames?: unknown,
+        hiddenGroupNames?: unknown
     ): Promise<FavoritesStore> {
         const task = this.queue.then(async () => {
             if (!Number.isSafeInteger(baseRevision) || (baseRevision as number) < 0)
                 throw new ValidationError('A valid baseRevision is required.');
-            const validated = validateFavorites(favorites, this.forbiddenOrigins);
             const current = await this.read();
             if (baseRevision !== current.revision) throw new ConflictError(current);
+            const validated = preserveFavoriteHiddenState(
+                validateFavorites(favorites, this.forbiddenOrigins),
+                current.favorites
+            );
             const groups = groupNames === undefined ? current.groups : validateGroups(groupNames);
+            const hiddenGroups =
+                hiddenGroupNames === undefined ? current.hiddenGroups : validateGroups(hiddenGroupNames);
             if (validated.some((favorite) => favorite.groups?.some((group) => !groups.includes(group))))
                 throw new ValidationError('Choose existing groups for every favorite.');
+            if (hiddenGroups.some((group) => !groups.includes(group)))
+                throw new ValidationError('A hidden group must exist in the group list.');
             validateGroupCap(validated, current.favorites);
             if (operation !== undefined && operation !== 'reorder')
                 throw new ValidationError('Invalid favorites operation.');
@@ -282,6 +315,7 @@ export class Storage {
                             old.name !== f.name ||
                             old.url !== f.url ||
                             old.mode !== f.mode ||
+                            old.hidden !== f.hidden ||
                             (old.groups?.length ?? 0) !== (f.groups?.length ?? 0) ||
                             f.groups?.some((group) => !old.groups?.includes(group))
                         );
@@ -290,9 +324,11 @@ export class Storage {
                     throw new ValidationError('Reordering cannot edit favorite fields.');
                 if (JSON.stringify(groups) !== JSON.stringify(current.groups))
                     throw new ValidationError('Reordering cannot edit groups.');
+                if (JSON.stringify(hiddenGroups) !== JSON.stringify(current.hiddenGroups))
+                    throw new ValidationError('Reordering cannot edit hidden groups.');
             }
             if (current.revision === Number.MAX_SAFE_INTEGER) throw new Error('Favorites revision exhausted.');
-            const next = { revision: current.revision + 1, favorites: validated, groups };
+            const next = { revision: current.revision + 1, favorites: validated, groups, hiddenGroups };
             await atomicWrite(join(this.directory, 'favorites.json'), next);
             return next;
         });

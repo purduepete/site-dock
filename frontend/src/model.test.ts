@@ -6,6 +6,7 @@ import {
     GROUP_LIMIT,
     groupCapViolation,
     isExternal,
+    isHiddenFavorite,
     moveFavorite,
     shortcutKey,
     validateUrl,
@@ -16,6 +17,12 @@ const item: Favorite = { id: 'one', name: 'One', url: 'https://example.com/', mo
 afterEach(() => vi.unstubAllGlobals());
 
 describe('favorite addresses and display modes', () => {
+    it('hides a favorite that is explicitly hidden or belongs to any hidden group', () => {
+        expect(isHiddenFavorite(item, [])).toBe(false);
+        expect(isHiddenFavorite({ ...item, hidden: true }, [])).toBe(true);
+        expect(isHiddenFavorite({ ...item, groups: ['A', 'B'] }, ['B'])).toBe(true);
+        expect(isHiddenFavorite({ ...item, groups: ['A', 'B'], hidden: true }, ['B'])).toBe(true);
+    });
     it('accepts cross-origin HTTP(S) and normalizes the saved address', () => {
         expect(validateUrl(' https://example.com ')).toBe('https://example.com/');
         expect(validateUrl('http://example.com')).toBe('http://example.com/');

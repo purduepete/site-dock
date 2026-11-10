@@ -7,6 +7,7 @@ import {
     GROUP_LIMIT,
     groupCapViolation,
     isExternal,
+    isHiddenFavorite,
     moveFavorite,
     readPreference,
     savePreference,
@@ -28,6 +29,7 @@ import { isAppleTouchDevice } from './device';
 import { ReorderGroupsDialog } from './ReorderGroupsDialog';
 import { LoadingSpinner } from './LoadingSpinner';
 import { EmbeddedSite } from './EmbeddedSite';
+import { VisibilityDialog } from './VisibilityDialog';
 import { forgetOrphanedTokens, handleTokenRequest, originOf, parseTokenRequest, readToken, writeToken } from './tokens';
 
 const localOrigins = ['localhost', '127.0.0.1', '[::1]'].flatMap((host) =>
@@ -311,6 +313,7 @@ export function App() {
     const enteredResults = useRef(false);
     const [draft, setDraft] = useState<Favorite[]>([]);
     const [groups, setGroups] = useState<string[]>([]);
+    const [hiddenGroups, setHiddenGroups] = useState<string[]>([]);
     const [groupFilter, setGroupFilter] = useState(() => {
         const saved = readPreference('group', 'all');
         return saved === 'ungrouped' ? 'all' : saved;
@@ -328,6 +331,7 @@ export function App() {
     const [resizing, setResizing] = useState(false);
     const [editor, setEditor] = useState<Favorite | null>(null);
     const [deleteTarget, setDeleteTarget] = useState<Favorite | null>(null);
+    const [visibilityOpen, setVisibilityOpen] = useState(false);
     const [frames, setFrames] = useState<Frame[]>([]);
     const revealedSites = useRef(new Set<string>());
     const [announcement, setAnnouncement] = useState('');
@@ -348,8 +352,13 @@ export function App() {
     const hudReturn = useRef<HTMLElement | null>(null);
     const [hudOpen, setHudOpen] = useState(false);
     const visibleFavorites = useMemo(
-        () => draft.filter((favorite) => groupFilter === 'all' || favorite.groups?.includes(groupFilter.slice(6))),
-        [draft, groupFilter]
+        () =>
+            draft.filter(
+                (favorite) =>
+                    !isHiddenFavorite(favorite, hiddenGroups) &&
+                    (groupFilter === 'all' || favorite.groups?.includes(groupFilter.slice(6)))
+            ),
+        [draft, groupFilter, hiddenGroups]
     );
     const current = draft.find((item) => item.id === selected);
     const startupLoading =
@@ -482,12 +491,14 @@ export function App() {
         setStore(null);
         setDraft([]);
         setGroups([]);
+        setHiddenGroups([]);
         setCreatingGroup(false);
         setReorderingGroups(false);
         setHudOpen(false);
         setFrames([]);
         setEditor(null);
         setDeleteTarget(null);
+        setVisibilityOpen(false);
         setConflict(null);
         setPending(false);
         setBusy(false);
@@ -550,6 +561,7 @@ export function App() {
                     setStore(result);
                     setDraft(result.favorites);
                     setGroups(result.groups ?? []);
+                    setHiddenGroups(result.hiddenGroups ?? []);
                     setError('');
                 }
             })
@@ -586,11 +598,14 @@ export function App() {
 
     useEffect(() => {
         if (!store) return;
-        if (groupFilter !== 'all' && !groups.includes(groupFilter.slice(6))) {
+        if (
+            groupFilter !== 'all' &&
+            (!groups.includes(groupFilter.slice(6)) || hiddenGroups.includes(groupFilter.slice(6)))
+        ) {
             setGroupFilter('all');
             savePreference('group', 'all');
         }
-    }, [store, groups, groupFilter]);
+    }, [store, groups, hiddenGroups, groupFilter]);
 
     useEffect(() => {
         savePreference('width', String(width));
@@ -606,7 +621,12 @@ export function App() {
         };
     }, [resizing]);
 
-    async function save(next: Favorite[], operation?: 'reorder', nextGroups = groups): Promise<boolean> {
+    async function save(
+        next: Favorite[],
+        operation?: 'reorder',
+        nextGroups = groups,
+        nextHiddenGroups = hiddenGroups
+    ): Promise<boolean> {
         if (!store || conflict || saving.current || !auth.current) return false;
         const full = groupCapViolation(next, store.favorites);
         if (full) {
@@ -616,6 +636,7 @@ export function App() {
         saving.current = true;
         setDraft(next);
         setGroups(nextGroups);
+        setHiddenGroups(nextHiddenGroups);
         setPending(true);
         setBusy(true);
         setError('');
@@ -625,12 +646,14 @@ export function App() {
                 baseRevision: store.revision,
                 favorites: next,
                 groups: nextGroups,
+                hiddenGroups: nextHiddenGroups,
                 ...(operation ? { operation } : {}),
             });
             if (epoch !== generation.current) return false;
             setStore(result);
             setDraft(result.favorites);
             setGroups(result.groups ?? []);
+            setHiddenGroups(result.hiddenGroups ?? []);
             setPending(false);
             setAnnouncement('Favorites saved.');
             forgetOrphanedTokens(store.favorites, result.favorites);
@@ -692,6 +715,7 @@ export function App() {
                 setStore(conflict);
                 setDraft(conflict.favorites);
                 setGroups(conflict.groups ?? []);
+                setHiddenGroups(conflict.hiddenGroups ?? []);
                 setPending(false);
                 setConflict(null);
                 setError('Latest list loaded. Unsaved form input is still available.');
@@ -792,17 +816,57 @@ export function App() {
                     }}
                 />
             )}
+            {visibilityOpen && (
+                <VisibilityDialog
+                    groups={groups}
+                    hiddenGroups={hiddenGroups}
+                    favorites={draft}
+                    busy={busy}
+                    blocked={!!conflict}
+                    error={error}
+                    onClose={() => setVisibilityOpen(false)}
+                    onToggleGroup={(name) => {
+                        const hidden = hiddenGroups.includes(name);
+                        void save(
+                            draft,
+                            undefined,
+                            groups,
+                            hidden ? hiddenGroups.filter((group) => group !== name) : [...hiddenGroups, name]
+                        ).then((saved) => {
+                            if (saved) setAnnouncement(`Group ${name} ${hidden ? 'shown' : 'hidden'}.`);
+                        });
+                    }}
+                    onToggleFavorite={(favorite) => {
+                        void save(
+                            draft.map((item) =>
+                                item.id === favorite.id ? { ...item, hidden: !favorite.hidden } : item
+                            )
+                        ).then((saved) => {
+                            if (saved) setAnnouncement(`${favorite.name} ${favorite.hidden ? 'shown' : 'hidden'}.`);
+                        });
+                    }}
+                />
+            )}
             {hudOpen && (
                 <GroupHud
                     current={groupFilter}
                     returnTo={hudReturn.current}
                     options={[
-                        { value: 'all', label: 'All sites', count: draft.length },
-                        ...groups.map((name) => ({
-                            value: `group:${name}`,
-                            label: name,
-                            count: draft.filter((favorite) => favorite.groups?.includes(name)).length,
-                        })),
+                        {
+                            value: 'all',
+                            label: 'All sites',
+                            count: draft.filter((favorite) => !isHiddenFavorite(favorite, hiddenGroups)).length,
+                        },
+                        ...groups
+                            .filter((name) => !hiddenGroups.includes(name))
+                            .map((name) => ({
+                                value: `group:${name}`,
+                                label: name,
+                                count: draft.filter(
+                                    (favorite) =>
+                                        favorite.groups?.includes(name) && !isHiddenFavorite(favorite, hiddenGroups)
+                                ).length,
+                            })),
                     ]}
                     onClose={() => setHudOpen(false)}
                     onApply={(value) => {
@@ -856,24 +920,39 @@ export function App() {
                     <span className="eyebrow">
                         FAVORITES <span className="count">{visibleFavorites.length}</span>
                     </span>
-                    <button
-                        aria-label="Add favorite"
-                        disabled={!store || busy}
-                        onClick={() => {
-                            setEditor({
-                                id: crypto.randomUUID(),
-                                name: '',
-                                url: '',
-                                mode: 'embed',
-                                ...(groupFilter.startsWith('group:') && visibleFavorites.length < GROUP_LIMIT
-                                    ? { groups: [groupFilter.slice(6)] }
-                                    : {}),
-                            });
-                            setSidebar(false);
-                        }}
-                    >
-                        <Icon name="plus" />
-                    </button>
+                    <div className="favorite-list-actions">
+                        <button
+                            type="button"
+                            className="visibility-trigger"
+                            aria-label="Visibility"
+                            disabled={!store || busy}
+                            onClick={() => {
+                                setError('');
+                                setVisibilityOpen(true);
+                            }}
+                        >
+                            <Icon name="show" />
+                            <span className="sr-only">Visibility</span>
+                        </button>
+                        <button
+                            aria-label="Add favorite"
+                            disabled={!store || busy}
+                            onClick={() => {
+                                setEditor({
+                                    id: crypto.randomUUID(),
+                                    name: '',
+                                    url: '',
+                                    mode: 'embed',
+                                    ...(groupFilter.startsWith('group:') && visibleFavorites.length < GROUP_LIMIT
+                                        ? { groups: [groupFilter.slice(6)] }
+                                        : {}),
+                                });
+                                setSidebar(false);
+                            }}
+                        >
+                            <Icon name="plus" />
+                        </button>
+                    </div>
                 </div>
                 <div className="group-filter">
                     <Dropdown
@@ -881,7 +960,9 @@ export function App() {
                         value={groupFilter}
                         options={[
                             { value: 'all', label: 'All sites' },
-                            ...groups.map((name) => ({ value: `group:${name}`, label: name })),
+                            ...groups
+                                .filter((name) => !hiddenGroups.includes(name))
+                                .map((name) => ({ value: `group:${name}`, label: name })),
                             { value: 'create', label: 'Create group...' },
                             { value: 'reorder', label: 'Reorder groups...' },
                         ]}
@@ -1118,6 +1199,7 @@ export function App() {
                                     if (store) {
                                         setDraft(store.favorites);
                                         setGroups(store.groups ?? []);
+                                        setHiddenGroups(store.hiddenGroups ?? []);
                                         setPending(false);
                                         setError('');
                                     }
@@ -1142,7 +1224,7 @@ export function App() {
                         <FavoriteForm
                             key={editor.id}
                             favorite={editor}
-                            groups={groups}
+                            groups={groups.filter((group) => !hiddenGroups.includes(group))}
                             draft={draft}
                             committed={store?.favorites ?? []}
                             busy={busy}

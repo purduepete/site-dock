@@ -82,7 +82,7 @@ test('storage seeds once, preserves empty lists, serializes and rejects conflict
         assert.equal((await storage.read()).favorites.length, 4);
         await storage.update(0, []);
         await storage.initialize();
-        assert.deepEqual(await storage.read(), { revision: 1, favorites: [], groups: [] });
+        assert.deepEqual(await storage.read(), { revision: 1, favorites: [], groups: [], hiddenGroups: [] });
         const results = await Promise.allSettled([storage.update(1, [favorite]), storage.update(1, [])]);
         assert.equal(results[0].status, 'fulfilled');
         assert.equal(results[1].status, 'rejected');
@@ -91,6 +91,7 @@ test('storage seeds once, preserves empty lists, serializes and rejects conflict
             revision: 1,
             favorites: [],
             groups: [],
+            hiddenGroups: [],
         });
         await assert.rejects(storage.update(-1, []));
         await writeFile(join(directory, 'favorites.json'), '{broken');
@@ -117,6 +118,9 @@ test('group validation rejects duplicates, invalid names and invalid favorite as
         { ...favorite, groups: ['Personal', 'Sports'] },
     ]);
     assert.deepEqual(validateFavorites([{ ...favorite, groups: [] }]), [favorite]);
+    assert.deepEqual(validateFavorites([{ ...favorite, hidden: true }]), [{ ...favorite, hidden: true }]);
+    assert.deepEqual(validateFavorites([{ ...favorite, hidden: false }]), [{ ...favorite, hidden: false }]);
+    assert.throws(() => validateFavorites([{ ...favorite, hidden: 'yes' }]));
     for (const groups of [null, 'Personal', ['Personal', 'personal'], [1], ['']])
         assert.throws(() => validateFavorites([{ ...favorite, groups }]));
     assert.throws(() => validateFavorites([{ ...favorite, group: 'Personal', groups: ['Sports'] }]));
@@ -129,18 +133,21 @@ test('groups persist with empty groups, legacy data, revision conflicts and reor
         const storage = new Storage(directory);
         await writeFile(join(directory, 'favorites.json'), JSON.stringify({ revision: 4, favorites: [favorite] }));
         const legacyText = await readFile(join(directory, 'favorites.json'), 'utf8');
-        assert.deepEqual(await storage.read(), { revision: 4, favorites: [favorite], groups: [] });
+        assert.deepEqual(await storage.read(), { revision: 4, favorites: [favorite], groups: [], hiddenGroups: [] });
         assert.equal(await readFile(join(directory, 'favorites.json'), 'utf8'), legacyText);
         const grouped = { ...favorite, groups: ['Personal', 'Sports'] };
-        const saved = await storage.update(4, [grouped], undefined, ['Personal', 'Sports']);
+        const hiddenFavorite = { ...grouped, hidden: true };
+        const saved = await storage.update(4, [hiddenFavorite], undefined, ['Personal', 'Sports'], ['Sports']);
         assert.deepEqual(saved.groups, ['Personal', 'Sports']);
+        assert.deepEqual(saved.hiddenGroups, ['Sports']);
         assert.deepEqual(await new Storage(directory).read(), saved);
         await assert.rejects(storage.update(4, [], undefined, ['News']), ConflictError);
         await assert.rejects(storage.update(5, [{ ...favorite, group: 'News' }]));
         await assert.rejects(storage.update(5, [grouped], undefined, []));
+        await assert.rejects(storage.update(5, [grouped], undefined, ['Personal'], ['Sports']));
         await assert.rejects(storage.update(5, [favorite], 'reorder'));
         await assert.rejects(storage.update(5, [grouped], 'reorder', ['Personal']));
-        assert.deepEqual((await storage.update(5, [grouped], 'reorder')).groups, saved.groups);
+        assert.deepEqual((await storage.update(5, [hiddenFavorite], 'reorder')).groups, saved.groups);
         const empty = await storage.update(6, []);
         assert.deepEqual(empty.groups, ['Personal', 'Sports']);
         assert.deepEqual(empty.favorites, []);
@@ -158,6 +165,7 @@ test('legacy single-group records are read as multiple memberships without rewri
         const storage = new Storage(directory);
         const current = await storage.read();
         assert.deepEqual(current.favorites, [{ ...favorite, groups: ['Sports'] }]);
+        assert.deepEqual(current.hiddenGroups, []);
         assert.equal(await readFile(path, 'utf8'), record);
         const updated = await storage.update(8, [{ ...favorite, groups: ['Sports', 'Personal'] }], undefined, [
             'Sports',
@@ -169,6 +177,20 @@ test('legacy single-group records are read as multiple memberships without rewri
         await assert.rejects(storage.update(9, [{ ...favorite, groups: ['Unknown'] }]));
         const cleared = await storage.update(9, [favorite]);
         assert.deepEqual(cleared.favorites, [favorite]);
+    }));
+
+test('older clients that omit favorite visibility cannot unhide an item accidentally', async () =>
+    fixture(async (directory) => {
+        const hidden = { ...favorite, hidden: true };
+        await writeFile(
+            join(directory, 'favorites.json'),
+            JSON.stringify({ revision: 1, favorites: [hidden], groups: [], hiddenGroups: [] })
+        );
+        const storage = new Storage(directory);
+        const preserved = await storage.update(1, [favorite]);
+        assert.deepEqual(preserved.favorites, [hidden]);
+        const restored = await storage.update(2, [{ ...favorite, hidden: false }]);
+        assert.deepEqual(restored.favorites, [{ ...favorite, hidden: false }]);
     }));
 
 test('atomic replacement failure preserves original and backup', async () =>
@@ -449,14 +471,21 @@ test('HTTP authentication, persistence, reset, origin/proxy boundaries and stati
             const grouped = await call(
                 '/api/favorites',
                 'PUT',
-                { baseRevision: 2, favorites: [{ ...favorite, group: 'Sports' }], groups: ['Sports', 'News'] },
+                {
+                    baseRevision: 2,
+                    favorites: [{ ...favorite, group: 'Sports', hidden: true }],
+                    groups: ['Sports', 'News'],
+                    hiddenGroups: ['Sports'],
+                },
                 authenticated
             );
             assert.equal(grouped.status, 200);
             assert.deepEqual(grouped.json.groups, ['Sports', 'News']);
+            assert.deepEqual(grouped.json.hiddenGroups, ['Sports']);
             const groupedRead = await call('/api/favorites', 'GET', undefined, authenticated);
-            assert.deepEqual(groupedRead.json.favorites, [{ ...favorite, groups: ['Sports'] }]);
+            assert.deepEqual(groupedRead.json.favorites, [{ ...favorite, groups: ['Sports'], hidden: true }]);
             assert.deepEqual(groupedRead.json.groups, ['Sports', 'News']);
+            assert.deepEqual(groupedRead.json.hiddenGroups, ['Sports']);
             const groupConflict = await call(
                 '/api/favorites',
                 'PUT',

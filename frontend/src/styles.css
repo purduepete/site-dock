@@ -238,6 +238,15 @@ p {
     align-items: center;
     gap: 12px;
 }
+.favorite-list-actions {
+    display: flex;
+    gap: 4px;
+}
+.favorite-list-actions button {
+    width: 36px;
+    min-height: 36px;
+    padding: 0;
+}
 .section-heading h2 {
     margin: 0;
 }
@@ -794,7 +803,16 @@ p {
         padding: 4px 2px;
         justify-content: center;
     }
+    .sidebar-minimized .favorite-list-actions {
+        gap: 0;
+    }
+    .sidebar-minimized .favorite-list-actions button {
+        width: 24px;
+        min-height: 32px;
+        padding: 0;
+    }
     .sidebar-minimized .list-heading .eyebrow,
+    .sidebar-minimized .visibility-trigger,
     .sidebar-minimized .favorite-actions,
     .sidebar-minimized .favorite-select > span,
     .sidebar-minimized .favorite-select > small,
@@ -1113,6 +1131,47 @@ iframe {
 .confirmation-modal .modal-url {
     overflow-wrap: anywhere;
     font-size: 12px;
+}
+.visibility-dialog {
+    width: min(520px, calc(100vw - 32px));
+}
+.visibility-dialog .section-heading {
+    margin-bottom: 16px;
+}
+.visibility-dialog h3 {
+    margin: 20px 0 8px;
+    font-size: 14px;
+}
+.visibility-dialog ul {
+    display: grid;
+    gap: 8px;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+}
+.visibility-dialog li {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    border: 1px solid var(--border);
+    padding: 8px;
+}
+.visibility-dialog li > span {
+    min-width: 0;
+    overflow-wrap: anywhere;
+}
+.visibility-dialog li small {
+    display: block;
+    margin-top: 3px;
+    color: var(--muted);
+}
+.visibility-dialog li button {
+    flex-shrink: 0;
+}
+.visibility-dialog li button svg {
+    width: 20px;
+    height: 20px;
 }
 .group-hud {
     width: min(420px, calc(100vw - 32px));

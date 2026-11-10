@@ -18,6 +18,7 @@ let conflict: boolean;
 let requests: Array<{ path: string; body?: Record<string, unknown> }>;
 let failSave: boolean;
 let groupNames: string[];
+let hiddenGroupNames: string[];
 let conflictStore: { revision: number; favorites: Favorite[]; groups: string[] } | null;
 const sites = (count: number, groups?: string[], start = 1): Favorite[] =>
     Array.from({ length: count }, (_, offset) => {
@@ -46,6 +47,7 @@ beforeEach(() => {
     failSave = false;
     requests = [];
     groupNames = [];
+    hiddenGroupNames = [];
     conflictStore = null;
     const preferences = new Map<string, string>();
     vi.stubGlobal('localStorage', {
@@ -91,6 +93,7 @@ beforeEach(() => {
                               revision: 7,
                               favorites: [{ ...favorites[0], name: 'Changed elsewhere' }],
                               groups: ['News'],
+                              hiddenGroups: [],
                               error: 'Conflict',
                           };
                 } else if (body && failSave) {
@@ -100,9 +103,10 @@ beforeEach(() => {
                     if (body) {
                         data = body.favorites as Favorite[];
                         groupNames = body.groups as string[];
+                        hiddenGroupNames = (body.hiddenGroups as string[] | undefined) ?? [];
                         revision++;
                     }
-                    value = { revision, favorites: data, groups: groupNames };
+                    value = { revision, favorites: data, groups: groupNames, hiddenGroups: hiddenGroupNames };
                 }
             }
             return new Response(JSON.stringify(value), { status });
@@ -876,6 +880,101 @@ describe('ten-site shortcuts and group limit', () => {
         await ready();
         expect(fireEvent.keyDown(window, { code: 'Digit0', altKey: true })).toBe(true);
         expect(pills()).toEqual(['1', '2', '3']);
+    });
+
+    it('hides a group and its members from All sites, selectors, and the group switcher, then restores it', async () => {
+        groupNames = ['Hidden', 'Visible'];
+        data = [
+            { ...favorites[0], groups: ['Hidden', 'Visible'] },
+            { ...favorites[1], groups: ['Hidden'] },
+            { ...favorites[2], groups: ['Visible'] },
+        ];
+        await readyWith('Example');
+        await userEvent.click(screen.getByRole('combobox', { name: 'Group' }));
+        await userEvent.click(screen.getByRole('option', { name: 'Hidden' }));
+        await userEvent.click(screen.getByRole('button', { name: 'Visibility' }));
+        const visibility = screen.getByRole('dialog', { name: 'Visibility' });
+        expect(within(visibility).getAllByRole('listitem')).toHaveLength(5);
+        await userEvent.click(within(visibility).getByRole('button', { name: 'Hide group Hidden' }));
+        await waitFor(() => expect(hiddenGroupNames).toEqual(['Hidden']));
+        expect(within(visibility).getAllByRole('listitem')).toHaveLength(5);
+        expect(within(visibility).getAllByText('Hidden by group: Hidden')).toHaveLength(2);
+        await userEvent.click(screen.getByRole('button', { name: 'Close visibility' }));
+        expect(screen.queryByRole('button', { name: 'Example' })).toBeNull();
+        expect(screen.queryByRole('button', { name: 'Other' })).toBeNull();
+        expect(screen.getByRole('link', { name: 'Open News in a separate tab' })).toBeTruthy();
+        expect(screen.getByRole('combobox', { name: 'Group' }).textContent).toContain('All sites');
+        await userEvent.click(screen.getByRole('button', { name: 'Edit News' }));
+        expect(screen.queryByRole('checkbox', { name: 'Hidden' })).toBeNull();
+        await userEvent.click(screen.getAllByRole('button', { name: 'Close editor' })[0]);
+        fireEvent.keyDown(window, { code: 'Digit1', altKey: true });
+        expect(screen.getByRole('link', { name: 'Open News in a separate tab' }).getAttribute('aria-current')).toBe(
+            'page'
+        );
+
+        fireEvent.keyDown(window, { key: 'g', code: 'KeyG', altKey: true });
+        expect(screen.queryByRole('option', { name: /Hidden/ })).toBeNull();
+        expect(screen.getByRole('option', { name: /Visible/ })).toBeTruthy();
+        await userEvent.keyboard('{Escape}');
+
+        await userEvent.click(screen.getByRole('button', { name: 'Visibility' }));
+        await userEvent.click(screen.getByRole('button', { name: 'Show group Hidden' }));
+        await waitFor(() => expect(hiddenGroupNames).toEqual([]));
+        expect(screen.getByRole('button', { name: 'Hide group Hidden' })).toBeTruthy();
+        await userEvent.click(screen.getByRole('button', { name: 'Close visibility' }));
+        expect(screen.getByRole('button', { name: 'Example' })).toBeTruthy();
+        expect(screen.getByRole('button', { name: 'Other' })).toBeTruthy();
+    });
+
+    it('hides a favorite explicitly and restores it without changing group visibility', async () => {
+        groupNames = ['G'];
+        data = [{ ...favorites[0], groups: ['G'] }, favorites[1], favorites[2]];
+        await readyWith('Example');
+        expect(screen.queryByRole('button', { name: 'Hide Example' })).toBeNull();
+        await userEvent.click(screen.getByRole('button', { name: 'Visibility' }));
+        await userEvent.click(screen.getByRole('button', { name: 'Hide favorite Example' }));
+        await waitFor(() => expect(data[0].hidden).toBe(true));
+        expect(screen.queryByRole('button', { name: 'Example' })).toBeNull();
+        expect(screen.getByText('Example')).toBeTruthy();
+        expect(screen.getByRole('button', { name: 'Hide favorite Other' })).toBeTruthy();
+        await userEvent.click(screen.getByRole('button', { name: 'Show favorite Example' }));
+        await waitFor(() => expect(data[0].hidden).toBe(false));
+        expect(screen.getByRole('button', { name: 'Hide favorite Example' })).toBeTruthy();
+        await userEvent.click(screen.getByRole('button', { name: 'Close visibility' }));
+        expect(screen.getByRole('button', { name: 'Example' })).toBeTruthy();
+        expect(hiddenGroupNames).toEqual([]);
+    });
+
+    it('explains how to create groups when the visibility dialog has none', async () => {
+        groupNames = [];
+        await readyWith('Example');
+        await userEvent.click(screen.getByRole('button', { name: 'Visibility' }));
+        const visibility = screen.getByRole('dialog', { name: 'Visibility' });
+        expect(within(visibility).getByRole('heading', { name: 'Groups' })).toBeTruthy();
+        expect(within(visibility).getByText('No groups yet. Create one from the Group menu.')).toBeTruthy();
+        expect(within(visibility).getByRole('button', { name: 'Hide favorite Example' })).toBeTruthy();
+    });
+
+    it('keeps individual visibility separate from overlapping hidden groups in the visibility dialog', async () => {
+        groupNames = ['A', 'B'];
+        hiddenGroupNames = ['A', 'B'];
+        data = [{ ...favorites[0], groups: ['A', 'B'], hidden: true }, favorites[1]];
+        await readyWith('Other');
+        await userEvent.click(screen.getByRole('button', { name: 'Visibility' }));
+        const visibility = screen.getByRole('dialog', { name: 'Visibility' });
+        expect(within(visibility).getByText('Hidden by group: A, B')).toBeTruthy();
+        await userEvent.click(within(visibility).getByRole('button', { name: 'Show group A' }));
+        await waitFor(() => expect(hiddenGroupNames).toEqual(['B']));
+        expect(data[0].hidden).toBe(true);
+        await userEvent.click(within(visibility).getByRole('button', { name: 'Show favorite Example' }));
+        await waitFor(() => expect(data[0].hidden).toBe(false));
+        expect(within(visibility).getByText('Hidden by group: B')).toBeTruthy();
+        expect(screen.queryByRole('button', { name: 'Example' })).toBeNull();
+        await userEvent.click(within(visibility).getByRole('button', { name: 'Show group B' }));
+        await waitFor(() => expect(hiddenGroupNames).toEqual([]));
+        expect(within(visibility).getAllByRole('listitem')).toHaveLength(4);
+        await userEvent.click(screen.getByRole('button', { name: 'Close visibility' }));
+        expect(screen.getByRole('button', { name: 'Example' })).toBeTruthy();
     });
 
     it('accepts a forwarded zero from the active frame', async () => {

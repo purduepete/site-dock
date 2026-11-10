@@ -254,7 +254,13 @@ export function createApp(config: Config, options: Options = {}) {
                     send(
                         res,
                         200,
-                        await storage.update(input.baseRevision, input.favorites, input.operation, input.groups)
+                        await storage.update(
+                            input.baseRevision,
+                            input.favorites,
+                            input.operation,
+                            input.groups,
+                            input.hiddenGroups
+                        )
                     );
                     return;
                 }

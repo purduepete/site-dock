@@ -1,5 +1,12 @@
-export type Favorite = { id: string; name: string; url: string; mode: 'embed' | 'external'; groups?: string[] };
-export type Store = { revision: number; favorites: Favorite[]; groups?: string[] };
+export type Favorite = {
+    id: string;
+    name: string;
+    url: string;
+    mode: 'embed' | 'external';
+    groups?: string[];
+    hidden?: boolean;
+};
+export type Store = { revision: number; favorites: Favorite[]; groups?: string[]; hiddenGroups?: string[] };
 export type Session = {
     authenticated: boolean;
     username?: string;
@@ -7,6 +14,10 @@ export type Session = {
     gatewayAuthenticated?: boolean;
 };
 export type Theme = 'midnight' | 'light' | 'system';
+
+export function isHiddenFavorite(favorite: Favorite, hiddenGroups: readonly string[]): boolean {
+    return favorite.hidden === true || (favorite.groups ?? []).some((group) => hiddenGroups.includes(group));
+}
 
 // Safari purges script-written storage a day after a Cloudflare Access redirect, so preferences
 // also live in a cookie the server sets. localStorage stays as a fallback and seeds the first cookie.

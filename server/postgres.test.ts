@@ -7,14 +7,15 @@ import { ConflictError, createStorage } from './storage.js';
 const current = {
     revision: 7,
     groups: ['News'],
+    hiddenGroups: [],
     favorites: [{ id: 'news', name: 'News', url: 'https://example.com/', mode: 'embed', groups: ['News'] }],
 };
-function fixture(version = 1) {
+function fixture(version = 1, document = current) {
     const calls: Array<{ sql: string; values?: unknown[] }> = [];
     const query = async (sql: string, values?: unknown[]) => {
         calls.push({ sql, values });
         if (sql.includes('solutiondeploy_schema')) return { rows: [{ version }], rowCount: 1 };
-        if (sql.startsWith('SELECT document')) return { rows: [{ document: current }], rowCount: 1 };
+        if (sql.startsWith('SELECT document')) return { rows: [{ document }], rowCount: 1 };
         return { rows: [], rowCount: sql.startsWith('UPDATE') ? 1 : 0 };
     };
     let released = false;
@@ -62,14 +63,38 @@ test('missing PostgreSQL credentials never fall back to file storage', async () 
 
 test('JSONB updates lock the row, preserve ordered documents and condition the revision', async () => {
     const { storage, calls, released } = fixture();
-    const result = await storage.update(7, current.favorites, undefined, current.groups);
+    const result = await storage.update(7, current.favorites, undefined, current.groups, ['News']);
     assert.equal(result.revision, 8);
     assert.deepEqual(result.favorites, current.favorites);
+    assert.deepEqual(result.hiddenGroups, ['News']);
     assert.ok(calls[1].sql.endsWith('FOR UPDATE'));
     assert.match(calls[2].sql, /document->>'revision'/);
     assert.deepEqual(calls[2].values, [JSON.stringify(result), 7]);
     assert.equal(calls.at(-1)?.sql, 'COMMIT');
     assert.equal(released(), true);
+});
+
+test('JSONB updates validate hidden groups and preserve legacy documents as visible', async () => {
+    const { storage } = fixture();
+    const legacy = new PostgresStorage({
+        query: async () => ({
+            rows: [{ document: { revision: 1, groups: ['News'], favorites: current.favorites } }],
+            rowCount: 1,
+        }),
+    } as unknown as Pool);
+    assert.deepEqual(await legacy.read(), { ...current, revision: 1 });
+    await assert.rejects(storage.update(7, current.favorites, undefined, current.groups, ['Missing']));
+});
+
+test('JSONB updates preserve hidden state when an older client omits the field', async () => {
+    const hiddenDocument = {
+        ...current,
+        favorites: [{ ...current.favorites[0], hidden: true }],
+    };
+    const hidden = await fixture(1, hiddenDocument).storage.update(7, current.favorites);
+    assert.deepEqual(hidden.favorites, hiddenDocument.favorites);
+    const restored = await fixture(1, hiddenDocument).storage.update(7, [{ ...current.favorites[0], hidden: false }]);
+    assert.deepEqual(restored.favorites, [{ ...current.favorites[0], hidden: false }]);
 });
 
 test('revision conflicts roll back without altering documents', async () => {
