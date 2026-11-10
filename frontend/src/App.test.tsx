@@ -894,6 +894,8 @@ describe('ten-site shortcuts and group limit', () => {
         await userEvent.click(screen.getByRole('option', { name: 'Hidden' }));
         await userEvent.click(screen.getByRole('button', { name: 'Visibility' }));
         const visibility = screen.getByRole('dialog', { name: 'Visibility' });
+        await userEvent.click(within(visibility).getByRole('button', { name: 'Hidden' }));
+        await userEvent.click(within(visibility).getByRole('button', { name: 'Visible' }));
         expect(within(visibility).getAllByRole('listitem')).toHaveLength(4);
         await userEvent.click(within(visibility).getByRole('button', { name: 'Hide group Hidden' }));
         await waitFor(() => expect(hiddenGroupNames).toEqual(['Hidden']));
@@ -932,6 +934,8 @@ describe('ten-site shortcuts and group limit', () => {
         await readyWith('Example');
         expect(screen.queryByRole('button', { name: 'Hide Example' })).toBeNull();
         await userEvent.click(screen.getByRole('button', { name: 'Visibility' }));
+        await userEvent.click(screen.getByRole('button', { name: 'G' }));
+        await userEvent.click(screen.getByRole('button', { name: 'Ungrouped' }));
         await userEvent.click(screen.getByRole('button', { name: 'Hide favorite Example' }));
         await waitFor(() => expect(data[0].hidden).toBe(true));
         expect(screen.queryByRole('button', { name: 'Example' })).toBeNull();
@@ -952,6 +956,7 @@ describe('ten-site shortcuts and group limit', () => {
         const visibility = screen.getByRole('dialog', { name: 'Visibility' });
         expect(within(visibility).getByRole('heading', { name: 'Groups' })).toBeTruthy();
         expect(within(visibility).getByText('No groups yet. Create one from the Group menu.')).toBeTruthy();
+        await userEvent.click(within(visibility).getByRole('button', { name: 'Ungrouped' }));
         expect(within(visibility).getByRole('button', { name: 'Hide favorite Example' })).toBeTruthy();
     });
 
@@ -962,6 +967,9 @@ describe('ten-site shortcuts and group limit', () => {
         await readyWith('Other');
         await userEvent.click(screen.getByRole('button', { name: 'Visibility' }));
         const visibility = screen.getByRole('dialog', { name: 'Visibility' });
+        for (const name of ['A', 'B', 'Ungrouped']) {
+            await userEvent.click(within(visibility).getByRole('button', { name }));
+        }
         expect(within(visibility).getAllByText('Hidden by group: A, B')).toHaveLength(2);
         const groupA = within(visibility).getByRole('region', { name: 'A' });
         const groupB = within(visibility).getByRole('region', { name: 'B' });
@@ -981,6 +989,31 @@ describe('ten-site shortcuts and group limit', () => {
         expect(within(visibility).getAllByRole('listitem')).toHaveLength(3);
         await userEvent.click(screen.getByRole('button', { name: 'Close visibility' }));
         expect(screen.getByRole('button', { name: 'Example' })).toBeTruthy();
+    });
+
+    it('starts visibility groups collapsed on each open and expands independently of hiding', async () => {
+        groupNames = ['A', 'Empty'];
+        data = [{ ...favorites[0], groups: ['A'] }, favorites[1]];
+        await readyWith('Example');
+        await userEvent.click(screen.getByRole('button', { name: 'Visibility' }));
+        let dialog = screen.getByRole('dialog', { name: 'Visibility' });
+        for (const name of ['A', 'Empty', 'Ungrouped']) {
+            expect(within(dialog).getByRole('button', { name }).getAttribute('aria-expanded')).toBe('false');
+        }
+        expect(within(dialog).queryByRole('button', { name: 'Hide favorite Example' })).toBeNull();
+        await userEvent.click(within(dialog).getByRole('button', { name: 'Hide group A' }));
+        await waitFor(() => expect(hiddenGroupNames).toEqual(['A']));
+        expect(within(dialog).getByRole('button', { name: 'A' }).getAttribute('aria-expanded')).toBe('false');
+        await userEvent.click(within(dialog).getByRole('button', { name: 'A' }));
+        expect(within(dialog).getByRole('button', { name: 'Hide favorite Example' })).toBeTruthy();
+        await userEvent.click(within(dialog).getByRole('button', { name: 'A' }));
+        expect(within(dialog).queryByRole('button', { name: 'Hide favorite Example' })).toBeNull();
+        await userEvent.click(within(dialog).getByRole('button', { name: 'Empty' }));
+        expect(within(dialog).getByText('No favorites in this group.')).toBeTruthy();
+        await userEvent.click(within(dialog).getByRole('button', { name: 'Close visibility' }));
+        await userEvent.click(screen.getByRole('button', { name: 'Visibility' }));
+        dialog = screen.getByRole('dialog', { name: 'Visibility' });
+        expect(within(dialog).getByRole('button', { name: 'Empty' }).getAttribute('aria-expanded')).toBe('false');
     });
 
     it('accepts a forwarded zero from the active frame', async () => {

@@ -1162,6 +1162,17 @@ iframe {
     overflow-wrap: anywhere;
     min-width: 0;
 }
+.visibility-group-heading .visibility-expand {
+    border: 0;
+    background: transparent;
+    padding: 0;
+    font: inherit;
+    text-align: left;
+    justify-content: flex-start;
+}
+.visibility-expand svg {
+    flex-shrink: 0;
+}
 .visibility-dialog ul {
     display: grid;
     gap: 8px;
