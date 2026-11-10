@@ -1134,13 +1134,33 @@ iframe {
 }
 .visibility-dialog {
     width: min(520px, calc(100vw - 32px));
+    font-size: 14.4px;
+}
+.visibility-dialog h2 {
+    font-size: 18.9px;
+}
+.visibility-dialog p {
+    font-size: 12.6px;
 }
 .visibility-dialog .section-heading {
     margin-bottom: 16px;
 }
 .visibility-dialog h3 {
     margin: 20px 0 8px;
-    font-size: 14px;
+    font-size: 12.6px;
+}
+.visibility-group-heading {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    margin: 20px 0 8px;
+    padding-inline: 9px;
+}
+.visibility-group-heading h3 {
+    margin: 0;
+    overflow-wrap: anywhere;
+    min-width: 0;
 }
 .visibility-dialog ul {
     display: grid;
@@ -1166,12 +1186,17 @@ iframe {
     margin-top: 3px;
     color: var(--muted);
 }
-.visibility-dialog li button {
+.visibility-dialog button {
     flex-shrink: 0;
+    font-size: 11.7px;
 }
-.visibility-dialog li button svg {
-    width: 20px;
-    height: 20px;
+.visibility-group-heading button,
+.visibility-dialog li button {
+    min-width: 44px;
+}
+.visibility-dialog button svg {
+    width: 18px;
+    height: 18px;
 }
 .group-hud {
     width: min(420px, calc(100vw - 32px));

@@ -29,6 +29,14 @@ export function VisibilityDialog({
     const heading = useRef<HTMLHeadingElement>(null);
     const close = useRef<HTMLButtonElement>(null);
     const title = useId();
+    const ungrouped = favorites.filter((favorite) => !favorite.groups?.length);
+    const sections = [
+        ...groups.map((group) => ({
+            group,
+            favorites: favorites.filter((favorite) => favorite.groups?.includes(group)),
+        })),
+        ...(ungrouped.length ? [{ group: null, favorites: ungrouped }] : []),
+    ];
 
     useEffect(() => {
         const element = dialog.current!;
@@ -64,61 +72,70 @@ export function VisibilityDialog({
                     {error}
                 </p>
             )}
-            <section aria-labelledby={`${title}-groups`}>
-                <h3 id={`${title}-groups`}>Groups</h3>
-                {groups.length > 0 ? (
-                    <ul>
-                        {groups.map((group) => {
-                            const hidden = hiddenGroups.includes(group);
-                            return (
-                                <li key={group}>
-                                    <span>
-                                        {group}
-                                        <small>{hidden ? 'Hidden' : 'Shown'}</small>
-                                    </span>
-                                    <button
-                                        type="button"
-                                        aria-label={`${hidden ? 'Show' : 'Hide'} group ${group}`}
-                                        disabled={busy || blocked}
-                                        onClick={() => onToggleGroup(group)}
-                                    >
-                                        {hidden ? <EyeOff aria-hidden="true" /> : <Eye aria-hidden="true" />}
-                                    </button>
-                                </li>
-                            );
-                        })}
-                    </ul>
-                ) : (
+            {!groups.length && (
+                <section aria-labelledby={`${title}-groups`}>
+                    <h3 id={`${title}-groups`}>Groups</h3>
                     <p className="muted">No groups yet. Create one from the Group menu.</p>
-                )}
-            </section>
-            {favorites.length > 0 && (
-                <section aria-labelledby={`${title}-favorites`}>
-                    <h3 id={`${title}-favorites`}>Favorites</h3>
-                    <ul>
-                        {favorites.map((favorite) => {
-                            const hiddenBy = favorite.groups?.filter((group) => hiddenGroups.includes(group)) ?? [];
-                            return (
-                                <li key={favorite.id}>
-                                    <span>
-                                        {favorite.name}
-                                        <small>{favorite.hidden ? 'Hidden individually' : 'Shown individually'}</small>
-                                        {hiddenBy.length > 0 && <small>Hidden by group: {hiddenBy.join(', ')}</small>}
-                                    </span>
-                                    <button
-                                        type="button"
-                                        aria-label={`${favorite.hidden ? 'Show' : 'Hide'} favorite ${favorite.name}`}
-                                        disabled={busy || blocked}
-                                        onClick={() => onToggleFavorite(favorite)}
-                                    >
-                                        {favorite.hidden ? <EyeOff aria-hidden="true" /> : <Eye aria-hidden="true" />}
-                                    </button>
-                                </li>
-                            );
-                        })}
-                    </ul>
                 </section>
             )}
+            {sections.map(({ group, favorites: members }, index) => {
+                const hidden = group !== null && hiddenGroups.includes(group);
+                return (
+                    <section
+                        key={group === null ? 'ungrouped' : `group:${group}`}
+                        aria-labelledby={`${title}-section-${index}`}
+                    >
+                        <div className="visibility-group-heading">
+                            <h3 id={`${title}-section-${index}`}>{group ?? 'Ungrouped'}</h3>
+                            {group !== null && (
+                                <button
+                                    type="button"
+                                    aria-label={`${hidden ? 'Show' : 'Hide'} group ${group}`}
+                                    disabled={busy || blocked}
+                                    onClick={() => onToggleGroup(group)}
+                                >
+                                    {hidden ? <EyeOff aria-hidden="true" /> : <Eye aria-hidden="true" />}
+                                </button>
+                            )}
+                        </div>
+                        {members.length ? (
+                            <ul>
+                                {members.map((favorite) => {
+                                    const hiddenBy =
+                                        favorite.groups?.filter((group) => hiddenGroups.includes(group)) ?? [];
+                                    return (
+                                        <li key={favorite.id}>
+                                            <span>
+                                                {favorite.name}
+                                                <small>
+                                                    {favorite.hidden ? 'Hidden individually' : 'Shown individually'}
+                                                </small>
+                                                {hiddenBy.length > 0 && (
+                                                    <small>Hidden by group: {hiddenBy.join(', ')}</small>
+                                                )}
+                                            </span>
+                                            <button
+                                                type="button"
+                                                aria-label={`${favorite.hidden ? 'Show' : 'Hide'} favorite ${favorite.name}`}
+                                                disabled={busy || blocked}
+                                                onClick={() => onToggleFavorite(favorite)}
+                                            >
+                                                {favorite.hidden ? (
+                                                    <EyeOff aria-hidden="true" />
+                                                ) : (
+                                                    <Eye aria-hidden="true" />
+                                                )}
+                                            </button>
+                                        </li>
+                                    );
+                                })}
+                            </ul>
+                        ) : (
+                            <p className="muted">No favorites in this group.</p>
+                        )}
+                    </section>
+                );
+            })}
             {!groups.length && !favorites.length && <p>No groups or favorites.</p>}
         </dialog>,
         document.body
